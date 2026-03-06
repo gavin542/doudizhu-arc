@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Doudizhu Arc Edition - Web3 Battle</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d5a2a;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;height:100vh;height:100dvh;overflow:hidden;user-select:none;color:#fff}
+#game{width:100vw;height:100vh;height:100dvh;position:relative;background:radial-gradient(ellipse at center,#1a7a3a 0%,#0d5a2a 60%,#083a1a 100%);display:flex;flex-direction:column}
+
+#top-bar{display:flex;justify-content:center;align-items:center;gap:12px;padding:6px 12px;background:rgba(0,0,0,.3);flex-shrink:0}
+
+#bottom-cards-bar{display:flex;align-items:center;gap:6px}
+#bottom-cards-bar .label{font-size:13px;color:#aaa;margin-right:4px}
+
+#wallet-bar{display:flex;align-items:center;gap:8px;margin-left:auto}
+#wallet-bar .wallet-addr{font-size:11px;color:#adf;background:rgba(0,0,0,.3);padding:3px 8px;border-radius:10px;font-family:monospace;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#wallet-bar .wallet-bal{font-size:11px;color:#2ecc71;font-weight:bold}
+
+#table{flex:1;display:grid;grid-template-columns:140px 1fr 140px;grid-template-rows:1fr;min-height:0;padding:8px 0}
+
+.side-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:8px 4px}
+
+.player-badge{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.1);font-size:13px;transition:all .3s;text-align:center;width:100%}
+.player-badge.active{background:rgba(46,204,113,.4);box-shadow:0 0 10px rgba(46,204,113,.3)}
+.player-badge.landlord .p-name::after{content:' [Landlord]';color:#e74c3c;font-weight:bold}
+.p-name{font-weight:bold}.p-count{color:#adf;font-size:12px}.p-count.zero{color:#e74c3c}
+
+.side-play{display:flex;flex-wrap:wrap;justify-content:center;min-height:56px;align-items:center}
+.side-play .card-sm{margin-left:-10px}.side-play .card-sm:first-child{margin-left:0}
+
+#center-area{display:flex;flex-direction:column;align-items:center;justify-content:center;overflow-y:auto}
+#center-play{display:flex;flex-wrap:wrap;justify-content:center;min-height:64px;align-items:center}
+#center-play .card-sm{margin-left:-8px}#center-play .card-sm:first-child{margin-left:0}
+#center-play .room-code{font-size:36px;font-weight:bold;color:#2ecc71;letter-spacing:6px;font-family:monospace}
+
+.slot-label{font-size:16px;color:#ffd700;font-weight:bold}
+
+#hand-area{flex-shrink:0;display:flex;flex-direction:column;align-items:center;padding:4px 0 8px;background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.1)}
+#my-play{display:flex;flex-wrap:wrap;justify-content:center;min-height:34px;align-items:center;margin-bottom:2px}
+#my-play .card-sm{margin-left:-8px}#my-play .card-sm:first-child{margin-left:0}
+#hand-label{font-size:13px;color:#2ecc71;margin-bottom:3px;font-weight:bold}
+#hand-cards{display:flex;justify-content:center;flex-wrap:nowrap;padding:18px 10px 0;overflow-x:auto;max-width:100%;min-height:90px}
+#controls{display:flex;gap:10px;margin-top:5px;margin-bottom:4px}
+
+.card{width:54px;height:78px;background:#fff;border-radius:5px;border:1.5px solid #bbb;display:inline-flex;flex-direction:column;align-items:flex-start;padding:3px 5px;cursor:pointer;position:relative;transition:transform .15s,box-shadow .15s;box-shadow:1px 2px 4px rgba(0,0,0,.3);flex-shrink:0}
+.card:hover{transform:translateY(-5px);box-shadow:1px 4px 8px rgba(0,0,0,.4)}
+.card.selected{transform:translateY(-16px);box-shadow:0 6px 12px rgba(0,0,0,.5);border-color:#3498db}
+.card.disabled{cursor:default;opacity:.7}.card.disabled:hover{transform:none}
+.card .val{font-size:15px;font-weight:bold;line-height:1}.card .suit{font-size:17px;line-height:1;align-self:center;margin-top:2px}
+.card.red .val,.card.red .suit{color:#d00}.card.black .val,.card.black .suit{color:#222}
+.card.joker-small .val{color:#1a5;font-size:10px}.card.joker-small .suit{font-size:28px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))}
+.card.joker-big .val{color:#d00;font-size:10px}.card.joker-big .suit{font-size:28px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))}
+.hand-card{margin-left:-16px}.hand-card:first-child{margin-left:0}
+.card-sm{width:42px;height:60px;padding:2px 3px;cursor:default}.card-sm .val{font-size:11px}.card-sm .suit{font-size:13px}
+.card-sm:hover{transform:none;box-shadow:1px 2px 4px rgba(0,0,0,.3)}
+.card-xs{width:34px;height:50px;padding:2px;cursor:default}.card-xs .val{font-size:10px}.card-xs .suit{font-size:11px}.card-xs:hover{transform:none}
+
+.btn{padding:7px 22px;font-size:14px;border:none;border-radius:8px;cursor:pointer;font-weight:bold;transition:all .2s;color:#fff}
+.btn:hover{transform:scale(1.05)}.btn:disabled{opacity:.4;cursor:default;transform:none}
+.btn-play{background:#e67e22}.btn-pass{background:#7f8c8d}.btn-hint{background:#2ecc71}
+
+#overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.78);z-index:200;display:flex;justify-content:center;align-items:center;backdrop-filter:blur(4px)}
+#overlay.hidden{display:none}
+.overlay-box{background:linear-gradient(135deg,#1a3a2a,#2a5a3a);border:2px solid rgba(46,204,113,.4);border-radius:20px;padding:36px 44px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5);max-width:92vw;min-width:280px;max-height:90vh;overflow-y:auto}
+.overlay-box h2{font-size:24px;margin-bottom:10px}
+.overlay-box p{font-size:15px;color:#ccc;margin-bottom:14px;line-height:1.6}
+.overlay-box .sub{font-size:12px;color:#888;margin-top:10px}
+.room-code{font-size:42px;font-weight:bold;color:#2ecc71;letter-spacing:8px;margin:12px 0;font-family:monospace}
+.btn-big{padding:12px 40px;font-size:18px;border:none;border-radius:12px;cursor:pointer;font-weight:bold;color:#fff;margin:6px;transition:all .2s}
+.btn-big:hover{transform:scale(1.05)}.btn-big:disabled{opacity:.4;cursor:default;transform:none}
+.btn-ready{background:#27ae60}.btn-bid{background:#e74c3c}.btn-bid.pass{background:#7f8c8d}.btn-restart{background:#e67e22}
+input.room-input{width:160px;padding:10px 14px;font-size:20px;text-align:center;border-radius:10px;border:2px solid #2ecc71;background:rgba(0,0,0,.3);color:#fff;letter-spacing:6px;font-family:monospace;text-transform:uppercase;outline:none}
+input.room-input:focus{border-color:#3498db}
+input.name-input{width:120px;padding:8px 12px;font-size:15px;text-align:center;border-radius:8px;border:1.5px solid #888;background:rgba(0,0,0,.3);color:#fff;outline:none}
+.player-list{margin:10px 0;font-size:14px;color:#adf}
+.wait-dot::after{content:'';animation:dots 1.5s infinite}
+@keyframes dots{0%{content:''}33%{content:'.'}66%{content:'..'}100%{content:'...'}}
+#msg{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);font-size:22px;font-weight:bold;color:#ffd700;text-shadow:2px 2px 6px rgba(0,0,0,.6);pointer-events:none;z-index:250;opacity:0;transition:opacity .3s}
+#msg.show{opacity:1}
+#music-btn{position:absolute;top:48px;right:10px;z-index:100;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:20px;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+#music-btn:hover{background:rgba(0,0,0,.6)}
+#music-btn.muted{opacity:.4}
+#help-btn{position:absolute;top:8px;right:10px;z-index:100;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:18px;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-weight:bold}
+#help-btn:hover{background:rgba(0,0,0,.6)}
+#leaderboard-btn{position:absolute;top:8px;right:56px;z-index:100;background:rgba(0,0,0,.4);border:1px solid rgba(255,215,0,.3);color:#ffd700;font-size:16px;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+#leaderboard-btn:hover{background:rgba(0,0,0,.6)}
+#help-panel{display:none;position:absolute;top:0;left:0;right:0;bottom:0;z-index:250;background:rgba(0,0,0,.82);backdrop-filter:blur(4px);overflow-y:auto;padding:20px}
+#help-panel.show{display:flex;justify-content:center}
+#help-content{background:linear-gradient(135deg,#1a3a2a,#2a5a3a);border:2px solid rgba(46,204,113,.4);border-radius:16px;padding:28px 32px;max-width:520px;width:100%;color:#ddd;font-size:14px;line-height:1.8;align-self:flex-start}
+#help-content h2{color:#2ecc71;font-size:20px;margin-bottom:12px;text-align:center}
+#help-content h3{color:#ffd700;font-size:15px;margin:14px 0 6px;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:4px}
+#help-content table{width:100%;border-collapse:collapse;margin:6px 0;font-size:13px}
+#help-content td{padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.06)}
+#help-content td:first-child{color:#2ecc71;white-space:nowrap;font-weight:bold}
+#help-content .close-help{display:block;margin:18px auto 0;padding:8px 32px;font-size:15px;background:#7f8c8d;color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:bold}
+#leaderboard-panel{display:none;position:absolute;top:0;left:0;right:0;bottom:0;z-index:250;background:rgba(0,0,0,.82);backdrop-filter:blur(4px);overflow-y:auto;padding:20px}
+#leaderboard-panel.show{display:flex;justify-content:center}
+#lb-content{background:linear-gradient(135deg,#1a3a2a,#2a5a3a);border:2px solid rgba(255,215,0,.4);border-radius:16px;padding:28px 32px;max-width:520px;width:100%;color:#ddd;font-size:14px;line-height:1.8;align-self:flex-start}
+#lb-content h2{color:#ffd700;font-size:20px;margin-bottom:12px;text-align:center}
+#lb-content table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+#lb-content th{color:#ffd700;text-align:left;padding:6px 8px;border-bottom:2px solid rgba(255,215,0,.3)}
+#lb-content td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06)}
+#lb-content .close-lb{display:block;margin:18px auto 0;padding:8px 32px;font-size:15px;background:#7f8c8d;color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:bold}
+
+.web3-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:bold;margin-left:6px}
+.web3-badge.on{background:rgba(46,204,113,.3);color:#2ecc71;border:1px solid rgba(46,204,113,.4)}
+.web3-badge.off{background:rgba(231,76,60,.2);color:#e74c3c;border:1px solid rgba(231,76,60,.3)}
+.wallet-dropdown{position:relative;display:inline-block}
+.wallet-dropdown-btn{cursor:pointer;display:flex;align-items:center;gap:4px}
+.wallet-dropdown-btn::after{content:'\25BE';font-size:10px;color:#2ecc71}
+.wallet-menu{display:none;position:absolute;top:100%;right:0;margin-top:4px;background:#1a3a2a;border:1px solid rgba(46,204,113,.4);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.5);z-index:300;min-width:160px;overflow:hidden}
+.wallet-menu.show{display:block}
+.wallet-menu-item{padding:8px 14px;font-size:12px;color:#ccc;cursor:pointer;white-space:nowrap;transition:background .15s}
+.wallet-menu-item:hover{background:rgba(255,255,255,.1);color:#fff}
+.wallet-menu-item.danger{color:#e74c3c}
+.wallet-menu-item.danger:hover{background:rgba(231,76,60,.15)}
+
+@media(max-width:600px){
+.card{width:46px;height:66px;padding:2px 3px}.card .val{font-size:13px}.card .suit{font-size:14px}.hand-card{margin-left:-14px}
+.card-sm{width:36px;height:52px}.card-sm .val{font-size:9px}.card-sm .suit{font-size:11px}
+.card-xs{width:30px;height:44px}
+#table{grid-template-columns:90px 1fr 90px}
+.player-badge{padding:5px 6px;font-size:11px}
+.side-play .card-sm{margin-left:-14px}
+.btn{padding:6px 14px;font-size:12px}
+.overlay-box{padding:24px 20px}.overlay-box h2{font-size:20px}.btn-big{padding:10px 28px;font-size:16px}
+.room-code{font-size:34px}input.room-input{width:130px;font-size:18px;padding:8px 10px}
+}
+</style>
+</head>
+<body>
+<div id="game">
+<div id="top-bar">
+<span id="room-tag" style="display:none;font-size:11px;color:#adf;background:rgba(0,0,0,.3);padding:3px 8px;border-radius:10px;font-family:monospace;letter-spacing:2px;cursor:pointer" onclick="copyRoomCode()" title="Click to copy room code"></span>
+<div id="bottom-cards-bar"><span class="label">Reserve</span><div id="bottom-cards" style="display:flex;gap:3px"></div></div>
+<div id="wallet-bar">
+<div class="wallet-dropdown" id="wallet-dropdown">
+<div class="wallet-dropdown-btn" id="wallet-dropdown-btn" onclick="toggleWalletMenu()">
+<span id="wallet-addr" class="wallet-addr" style="display:none"></span>
+<span id="wallet-bal" class="wallet-bal" style="display:none"></span>
+</div>
+<div class="wallet-menu" id="wallet-menu">
+<div class="wallet-menu-item" onclick="doSwitchWallet()">Switch Wallet</div>
+<div class="wallet-menu-item danger" onclick="doDisconnectWallet()">Disconnect</div>
+</div>
+</div>
+</div>
+</div>
+<div id="table">
+<div id="side-left" class="side-panel">
+<div class="player-badge" id="badge-left"><span class="p-name" id="pname-left">-</span><span class="p-count" id="pcount-left"></span></div>
+<div class="side-play" id="play-left"></div>
+</div>
+<div id="center-area">
+<div id="center-play"></div>
+</div>
+<div id="side-right" class="side-panel">
+<div class="player-badge" id="badge-right"><span class="p-name" id="pname-right">-</span><span class="p-count" id="pcount-right"></span></div>
+<div class="side-play" id="play-right"></div>
+</div>
+</div>
+<div id="hand-area">
+<div id="my-play"></div>
+<div id="hand-label"></div>
+<div id="hand-cards"></div>
+<div id="controls">
+<button class="btn btn-play" onclick="onPlay()">Play</button>
+<button class="btn btn-pass" id="btn-pass" onclick="onPass()">Pass</button>
+<button class="btn btn-hint" onclick="onHint()">Hint</button>
+</div>
+</div>
+<div id="msg"></div>
+<button id="music-btn" onclick="toggleMusic()" title="Background Music">&#127925;</button>
+<button id="leaderboard-btn" onclick="toggleLeaderboard()" title="Leaderboard">&#127942;</button>
+<button id="help-btn" onclick="toggleHelp()" title="How to Play">?</button>
+<div id="help-panel">
+<div id="help-content">
+<h2>Doudizhu Arc Edition - How to Play</h2>
+<h3>Web3 Features</h3>
+<table>
+<tr><td>Wallet Connect</td><td>MetaMask on Arc Testnet</td></tr>
+<tr><td>USDC Betting</td><td>Bet USDC when creating/joining rooms</td></tr>
+<tr><td>On-chain Settlement</td><td>Winner receives prize pool USDC automatically</td></tr>
+<tr><td>Leaderboard</td><td>On-chain win/loss and earnings records</td></tr>
+<tr><td>Game Pass</td><td>Nanopayments $0.01 entry fee</td></tr>
+</table>
+<h3>Basic Rules</h3>
+<p>3-player game using 52 cards. Each player gets 16 cards, 4 cards are reserved. The Landlord is decided through bidding and receives the reserve cards (20 total). The other two Farmers team up against the Landlord.</p>
+<h3>Bidding</h3>
+<p>A random player starts bidding (1/2/3 points), taking turns. You can bid higher or pass. Bidding 3 instantly becomes Landlord, otherwise the highest bidder wins. If no one bids, cards are redealt.</p>
+<h3>Play Order</h3>
+<p>The Landlord plays first, turns go counter-clockwise. You are at the bottom, right is next player, left is previous player.</p>
+<h3>Card Combinations</h3>
+<table>
+<tr><td>Single</td><td>Any single card</td></tr>
+<tr><td>Pair</td><td>Two cards of same rank</td></tr>
+<tr><td>Triple/Triple+1</td><td>Three of a kind + optional kicker</td></tr>
+<tr><td>Straight</td><td>5+ consecutive singles</td></tr>
+<tr><td>Consecutive Pairs</td><td>3+ consecutive pairs</td></tr>
+<tr><td>Airplane</td><td>2+ consecutive triples</td></tr>
+</table>
+<h3>Bomb System</h3>
+<table>
+<tr><td>Pair of 3s Bomb</td><td>Lowest bomb</td></tr>
+<tr><td>Regular Bomb</td><td>Four of a kind (4~A)</td></tr>
+<tr><td>Pair of 2s Bomb</td><td>Beats regular bombs</td></tr>
+<tr><td>Rocket</td><td>Big Joker + Small Joker</td></tr>
+<tr><td>Four 3s</td><td>Strongest bomb</td></tr>
+</table>
+<button class="close-help" onclick="toggleHelp()">Got it</button>
+</div>
+</div>
+<div id="leaderboard-panel">
+<div id="lb-content">
+<h2>&#127942; On-chain Leaderboard</h2>
+<div id="lb-table-wrap"><p style="color:#888">Connect wallet to view leaderboard</p></div>
+<button class="close-lb" onclick="toggleLeaderboard()">Close</button>
+</div>
+</div>
+<div id="overlay"><div class="overlay-box" id="overlay-box"></div></div>
+</div>
+
+<script>
+// ============================================
+// Web3 Config
+// ============================================
+const ARC_TESTNET = {
+    chainId: '0x4CEF52', // 5042002
+    chainName: 'Arc Testnet',
+    rpcUrls: ['https://rpc.testnet.arc.network'],
+    nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+    blockExplorerUrls: ['https://testnet.arcscan.io']
+};
+// Fill in contract address after deployment
+const CONTRACT_ADDRESS = '0x00AA53722fe388e8d31987A8Da0108Cad9C57287';
+const CONTRACT_ABI = [
+    "function createGame() external payable returns (uint256)",
+    "function joinGame(uint256 gameId) external payable",
+    "function settleGame(uint256 gameId, address winner) external",
+    "function cancelGame(uint256 gameId) external",
+    "function claimTimeout(uint256 gameId) external",
+    "function TIMEOUT() external view returns (uint256)",
+    "function getPlayerStats(address player) external view returns (uint256 wins, uint256 losses, uint256 totalEarnings, uint256 totalGames)",
+    "function getTopPlayers() external view returns (address[] addresses, uint256[] wins, uint256[] earnings)",
+    "function getGame(uint256 gameId) external view returns (address host, uint8 playerCount, uint256 betAmount, bool settled, address winner)",
+    "function nextGameId() external view returns (uint256)",
+    "function BET_AMOUNT() external view returns (uint256)",
+    "event GameCreated(uint256 indexed gameId, address indexed host, uint256 betAmount)",
+    "event PlayerJoined(uint256 indexed gameId, address indexed player, uint8 slot)",
+    "event GameSettled(uint256 indexed gameId, address indexed winner, uint256 prize)",
+    "event GameCancelled(uint256 indexed gameId, address indexed host, uint256 refundTotal)"
+];
+
+let W3 = { provider: null, signer: null, contract: null, address: null, balance: '0', gamePass: null, currentBet: '1', onchainGameId: null };
+
+async function connectWallet() {
+    if (!window.ethereum) { showMsg('Please install MetaMask!', 2000); return false; }
+    try {
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        // Switch to Arc Testnet
+        try {
+            await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: ARC_TESTNET.chainId }] });
+        } catch (switchErr) {
+            if (switchErr.code === 4902) {
+                await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [ARC_TESTNET] });
+            } else throw switchErr;
+        }
+        W3.provider = new ethers.BrowserProvider(window.ethereum);
+        W3.signer = await W3.provider.getSigner();
+        W3.address = await W3.signer.getAddress();
+        if (CONTRACT_ADDRESS) {
+            W3.contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, W3.signer);
+        }
+        await refreshBalance();
+        updateWalletUI();
+        showMsg('Wallet connected!', 1500);
+        return true;
+    } catch (err) {
+        console.error('Wallet connection failed:', err);
+        showMsg('Connection failed: ' + (err.message || err).toString().slice(0, 50), 2000);
+        return false;
+    }
+}
+
+async function refreshBalance() {
+    if (!W3.provider || !W3.address) return;
+    try {
+        const bal = await W3.provider.getBalance(W3.address);
+        W3.balance = ethers.formatEther(bal);
+    } catch { W3.balance = '?'; }
+}
+
+function updateWalletUI() {
+    const addrEl = document.getElementById('wallet-addr');
+    const balEl = document.getElementById('wallet-bal');
+    const dropdownBtn = document.getElementById('wallet-dropdown-btn');
+    if (W3.address) {
+        addrEl.textContent = W3.address.slice(0, 6) + '...' + W3.address.slice(-4);
+        addrEl.style.display = '';
+        balEl.textContent = parseFloat(W3.balance).toFixed(4) + ' USDC';
+        balEl.style.display = '';
+        dropdownBtn.style.cursor = 'pointer';
+    } else {
+        addrEl.style.display = 'none';
+        balEl.style.display = 'none';
+        dropdownBtn.style.cursor = 'default';
+        // Close menu
+        const menu = document.getElementById('wallet-menu');
+        if(menu) menu.classList.remove('show');
+    }
+}
+
+function toggleWalletMenu() {
+    if(!W3.address) return;
+    document.getElementById('wallet-menu').classList.toggle('show');
+}
+
+// Switch wallet: use wallet_requestPermissions to force MetaMask account selection
+async function doSwitchWallet() {
+    document.getElementById('wallet-menu').classList.remove('show');
+    if(!window.ethereum) { showMsg('Please install MetaMask!', 2000); return; }
+    try {
+        await window.ethereum.request({
+            method: 'wallet_requestPermissions',
+            params: [{ eth_accounts: {} }]
+        });
+        // MetaMask will show account selection, triggers accountsChanged when done
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        if(accounts.length > 0) {
+            await connectWallet();
+            if(!VIEW) showLobby(false);
+        }
+    } catch(e) {
+        if(e.code !== 4001) console.error('Switch wallet failed:', e);
+    }
+}
+
+// Disconnect wallet
+function doDisconnectWallet() {
+    document.getElementById('wallet-menu').classList.remove('show');
+    disconnectWallet();
+}
+
+// On-chain create game
+async function web3CreateGame(betAmount) {
+    if (!W3.contract) { showMsg('Contract not configured', 2000); return null; }
+    try {
+        showMsg('Sending tx: Creating game...', 3000);
+        const tx = await W3.contract.createGame({ value: ethers.parseEther(betAmount) });
+        const receipt = await tx.wait();
+        const log = receipt.logs.find(l => { try { return W3.contract.interface.parseLog(l)?.name === 'GameCreated'; } catch { return false; } });
+        if (log) {
+            const parsed = W3.contract.interface.parseLog(log);
+            W3.onchainGameId = parsed.args[0];
+            try{sessionStorage.setItem('ddz_onchainGameId',W3.onchainGameId.toString())}catch(e){}
+            showMsg('On-chain game #' + W3.onchainGameId + ' created!', 2000);
+            return W3.onchainGameId;
+        }
+        return null;
+    } catch (err) {
+        console.error('Create game failed:', err);
+        showMsg('Tx failed: ' + (err.reason || err.message || '').slice(0, 40), 3000);
+        return null;
+    }
+}
+
+// On-chain join game
+async function web3JoinGame(gameId, betAmount) {
+    if (!W3.contract) return false;
+    try {
+        showMsg('Sending tx: Joining game...', 3000);
+        const tx = await W3.contract.joinGame(gameId, { value: ethers.parseEther(betAmount) });
+        await tx.wait();
+        W3.onchainGameId = gameId;
+        try{sessionStorage.setItem('ddz_onchainGameId',gameId.toString())}catch(e){}
+        showMsg('Joined on-chain game #' + gameId, 2000);
+        return true;
+    } catch (err) {
+        console.error('Join game failed:', err);
+        showMsg('Tx failed: ' + (err.reason || err.message || '').slice(0, 40), 3000);
+        return false;
+    }
+}
+
+// On-chain settlement
+async function web3SettleGame(gameId, winnerAddress) {
+    if (!W3.contract) return false;
+    try {
+        showMsg('Sending tx: Settling game...', 3000);
+        const tx = await W3.contract.settleGame(gameId, winnerAddress);
+        await tx.wait();
+        showMsg('On-chain settlement complete!', 2000);
+        await refreshBalance();
+        updateWalletUI();
+        return true;
+    } catch (err) {
+        console.error('Settlement failed:', err);
+        showMsg('Settlement failed: ' + (err.reason || err.message || '').slice(0, 40), 3000);
+        return false;
+    }
+}
+
+// On-chain cancel game (refund)
+async function web3CancelGame(gameId) {
+    if (!W3.contract) return false;
+    try {
+        showMsg('Sending tx: Cancelling game, refunding bets...', 3000);
+        const tx = await W3.contract.cancelGame(gameId);
+        await tx.wait();
+        showMsg('Refund successful! 1 USDC returned', 2000);
+        W3.onchainGameId = null;
+        try{sessionStorage.removeItem('ddz_onchainGameId')}catch(e){}
+        await refreshBalance();
+        updateWalletUI();
+        return true;
+    } catch (err) {
+        console.error('Cancel game failed:', err);
+        showMsg('Refund failed: ' + (err.reason || err.message || '').slice(0, 40), 3000);
+        return false;
+    }
+}
+
+// Timeout refund (any participant can call)
+async function web3ClaimTimeout(gameId) {
+    if (!W3.contract) return false;
+    try {
+        showMsg('Sending tx: Timeout refund...', 3000);
+        const tx = await W3.contract.claimTimeout(gameId);
+        await tx.wait();
+        showMsg('Timeout refund successful! USDC returned to all players', 2000);
+        W3.onchainGameId = null;
+        try{sessionStorage.removeItem('ddz_onchainGameId')}catch(e){}
+        await refreshBalance();
+        updateWalletUI();
+        return true;
+    } catch (err) {
+        console.error('Timeout refund failed:', err);
+        showMsg('Refund failed: ' + (err.reason || err.message || '').slice(0, 40), 3000);
+        return false;
+    }
+}
+
+// Buy game pass (Nanopayments)
+async function buyGamePass() {
+    try {
+        showMsg('Purchasing game pass...', 2000);
+        const resp = await fetch('/api/game-pass');
+        if (resp.status === 402) {
+            // Nanopayments payment required - prompt user
+            showMsg('Payment of $0.01 required (Nanopayments client needed)', 3000);
+            // In production, GatewayClient would auto-sign payment here
+            // In test mode, try to get free pass directly
+            return null;
+        }
+        if (!resp.ok) throw new Error('Request failed: ' + resp.status);
+        const data = await resp.json();
+        W3.gamePass = data;
+        showMsg('Game pass acquired!', 1500);
+        return data;
+    } catch (err) {
+        // Fallback when server is not running
+        console.warn('Pass acquisition failed, falling back to free mode:', err.message);
+        W3.gamePass = { pass: 'offline-' + Date.now(), expiresAt: Date.now() + 86400000, signature: 'offline' };
+        return W3.gamePass;
+    }
+}
+
+// Leaderboard query
+async function fetchLeaderboard() {
+    if (!W3.contract) return null;
+    try {
+        const [addresses, wins, earnings] = await W3.contract.getTopPlayers();
+        return addresses.map((addr, i) => ({
+            address: addr,
+            wins: Number(wins[i]),
+            earnings: ethers.formatEther(earnings[i])
+        })).filter(p => p.wins > 0);
+    } catch (err) {
+        console.error('Leaderboard query failed:', err);
+        return null;
+    }
+}
+
+function toggleLeaderboard() {
+    const panel = document.getElementById('leaderboard-panel');
+    if (panel.classList.contains('show')) {
+        panel.classList.remove('show');
+        return;
+    }
+    panel.classList.add('show');
+    const wrap = document.getElementById('lb-table-wrap');
+    if (!W3.contract) {
+        wrap.innerHTML = '<p style="color:#888;text-align:center">Please connect wallet and deploy contract first</p>';
+        return;
+    }
+    wrap.innerHTML = '<p style="color:#aaa;text-align:center">Loading<span class="wait-dot"></span></p>';
+    fetchLeaderboard().then(data => {
+        if (!data || data.length === 0) {
+            wrap.innerHTML = '<p style="color:#888;text-align:center">No data yet</p>';
+            return;
+        }
+        let html = '<table><tr><th>#</th><th>Player</th><th>Wins</th><th>Earnings(USDC)</th></tr>';
+        data.forEach((p, i) => {
+            const medal = i === 0 ? '&#129351;' : i === 1 ? '&#129352;' : i === 2 ? '&#129353;' : (i + 1);
+            const addr = p.address.slice(0, 6) + '...' + p.address.slice(-4);
+            html += `<tr><td>${medal}</td><td style="font-family:monospace;font-size:12px">${addr}</td><td style="color:#2ecc71">${p.wins}</td><td style="color:#ffd700">${parseFloat(p.earnings).toFixed(4)}</td></tr>`;
+        });
+        html += '</table>';
+        wrap.innerHTML = html;
+    });
+}
+
+// ============================================
+// Constants & Deck Utilities
+// ============================================
+const SUITS=['♠','♥','♦','♣'], RED_SUITS=new Set(['♥','♦']);
+const VALUE_ORDER=[3,4,5,6,7,8,9,10,11,12,13,14,15];
+const DISPLAY_MAP={3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9',10:'10',11:'J',12:'Q',13:'K',14:'A',15:'2'};
+const PEER_PREFIX='ddz3p-';
+let NAMES=['Player1','Player2','Player3'];
+let SOLO=false;
+
+function createDeck(){let d=[],id=0;for(let v of VALUE_ORDER){let c=v===15?2:4;for(let i=0;i<c;i++)d.push({id:id++,value:v,suit:SUITS[i],display:DISPLAY_MAP[v]});}d.push({id:id++,value:16,suit:'joker',display:'SJ'});d.push({id:id++,value:17,suit:'joker',display:'BJ'});return d}
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}}
+function sortCards(c){return c.sort((a,b)=>a.value-b.value||SUITS.indexOf(a.suit)-SUITS.indexOf(b.suit))}
+function isConsecutive(v){for(let i=1;i<v.length;i++)if(v[i]!==v[i-1]+1)return false;return true}
+function groupByValue(c){const m={};c.forEach(x=>{if(!m[x.value])m[x.value]=[];m[x.value].push(x)});return m}
+
+// ============================================
+// Play Detection & Comparison
+// ============================================
+function detectPlay(cards){
+    if(!cards||cards.length===0)return null;
+    const s=[...cards].sort((a,b)=>a.value-b.value),n=s.length,grp=groupByValue(s),vals=Object.keys(grp).map(Number).sort((a,b)=>a-b);
+    if(n===2&&s[0].value>=16&&s[1].value>=16)return{type:'bomb',bombRank:13};
+    if(n===2&&s[0].value===3&&s[1].value===3)return{type:'bomb',bombRank:0};
+    if(n===2&&s[0].value===15&&s[1].value===15)return{type:'bomb',bombRank:12};
+    if(n===4&&vals.length===1&&vals[0]===3)return{type:'bomb',bombRank:14};
+    if(n===4&&vals.length===1&&grp[vals[0]].length===4&&vals[0]!==3)return{type:'bomb',bombRank:vals[0]-3};
+    if(n===1)return{type:'single',main:s[0].value};
+    if(n===2&&vals.length===1&&vals[0]!==3&&vals[0]!==15)return{type:'pair',main:vals[0]};
+    if(n===3&&vals.length===1)return{type:'triple',main:vals[0]};
+    if(n===4){for(let v of vals)if(grp[v].length===3)return{type:'triple1',main:v}}
+    if(n===6){for(let v of vals)if(grp[v]&&grp[v].length===4){let r=0;vals.forEach(x=>{if(x!==v)r+=grp[x].length});if(r===2)return{type:'four2',main:v}}}
+    if(n>=5&&vals.length===n&&vals.every(v=>v>=3&&v<=14)&&isConsecutive(vals))return{type:'straight',main:vals[vals.length-1],len:n};
+    if(n>=6&&n%2===0){let ap=vals.every(v=>grp[v].length===2);if(ap&&vals.length>=3&&vals.every(v=>v>=3&&v<=14)&&isConsecutive(vals))return{type:'consec_pairs',main:vals[vals.length-1],len:vals.length}}
+    if(n>=6&&n%3===0){let at=vals.every(v=>grp[v].length===3);if(at&&vals.length>=2&&vals.every(v=>v>=3&&v<=14)&&isConsecutive(vals))return{type:'airplane',main:vals[vals.length-1],len:vals.length}}
+    if(n>=8&&n%4===0){let k=n/4;if(k>=2){let tv=vals.filter(v=>grp[v]&&grp[v].length>=3&&v>=3&&v<=14).sort((a,b)=>a-b);for(let i=0;i<=tv.length-k;i++){let r=tv.slice(i,i+k);if(isConsecutive(r)&&n-k*3===k)return{type:'airplane1',main:r[r.length-1],len:k}}}}
+    return null
+}
+function canBeat(a,b){if(!b)return a!==null;if(!a)return false;if(a.type==='bomb'&&b.type!=='bomb')return true;if(a.type!=='bomb'&&b.type==='bomb')return false;if(a.type==='bomb'&&b.type==='bomb')return a.bombRank>b.bombRank;if(a.type!==b.type)return false;if(a.len&&a.len!==b.len)return false;return a.main>b.main}
+function getBombMul(p){if(!p||p.type!=='bomb')return 1;return p.bombRank===14?8:2}
+function getTypeName(p){if(p.type==='bomb'){if(p.bombRank===14)return'Four 3s Super Bomb!';if(p.bombRank===13)return'Rocket!';if(p.bombRank===12)return'Pair 2s Bomb!';if(p.bombRank===0)return'Pair 3s Bomb!';return'Bomb!'}return{single:'Single',pair:'Pair',triple:'Triple',triple1:'Triple+1',four2:'Four+2',straight:'Straight',consec_pairs:'Consecutive Pairs',airplane:'Airplane',airplane1:'Airplane+Wings'}[p.type]||p.type}
+
+function addBombs(plays,grp,vals,hand){
+    if(grp[3]&&grp[3].length>=2)plays.push({cards:grp[3].slice(0,2),type:'bomb',bombRank:0});
+    for(let v of vals)if(grp[v].length===4&&v!==3)plays.push({cards:grp[v].slice(),type:'bomb',bombRank:v-3});
+    if(grp[15]&&grp[15].length>=2)plays.push({cards:grp[15].slice(0,2),type:'bomb',bombRank:12});
+    let sj=hand.find(c=>c.value===16),bj=hand.find(c=>c.value===17);
+    if(sj&&bj)plays.push({cards:[sj,bj],type:'bomb',bombRank:13});
+    if(grp[3]&&grp[3].length===4)plays.push({cards:grp[3].slice(),type:'bomb',bombRank:14});
+}
+function findAllPlays(hand,target){
+    const plays=[],grp=groupByValue(hand),vals=Object.keys(grp).map(Number).sort((a,b)=>a-b);
+    if(!target){
+        let seen=new Set();for(let c of hand)if(!seen.has(c.value)){seen.add(c.value);plays.push({cards:[c],type:'single',main:c.value})}
+        for(let v of vals)if(grp[v].length>=2&&v!==3&&v!==15)plays.push({cards:grp[v].slice(0,2),type:'pair',main:v});
+        for(let v of vals)if(grp[v].length>=3){plays.push({cards:grp[v].slice(0,3),type:'triple',main:v});for(let c of hand){if(c.value!==v){plays.push({cards:[...grp[v].slice(0,3),c],type:'triple1',main:v});break}}}
+        let sv=vals.filter(v=>v>=3&&v<=14);
+        for(let len=5;len<=sv.length;len++)for(let i=0;i<=sv.length-len;i++){let r=sv.slice(i,i+len);if(isConsecutive(r))plays.push({cards:r.map(v=>grp[v][0]),type:'straight',main:r[r.length-1],len})}
+        let pv=vals.filter(v=>grp[v].length>=2&&v>=3&&v<=14);
+        for(let len=3;len<=pv.length;len++)for(let i=0;i<=pv.length-len;i++){let r=pv.slice(i,i+len);if(isConsecutive(r)){let cs=[];r.forEach(v=>cs.push(...grp[v].slice(0,2)));plays.push({cards:cs,type:'consec_pairs',main:r[r.length-1],len:r.length})}}
+        let tv=vals.filter(v=>grp[v].length>=3&&v>=3&&v<=14);
+        for(let len=2;len<=tv.length;len++)for(let i=0;i<=tv.length-len;i++){let r=tv.slice(i,i+len);if(isConsecutive(r)){let cs=[];r.forEach(v=>cs.push(...grp[v].slice(0,3)));plays.push({cards:cs,type:'airplane',main:r[r.length-1],len:r.length})}}
+        for(let len=2;len<=tv.length;len++)for(let i=0;i<=tv.length-len;i++){let r=tv.slice(i,i+len);if(isConsecutive(r)){let cs=[];r.forEach(v=>cs.push(...grp[v].slice(0,3)));let uv=new Set(r),w=[];for(let c of hand)if(!uv.has(c.value)&&w.length<len)w.push(c);if(w.length===len){cs.push(...w);let p=detectPlay(cs);if(p)plays.push({cards:cs,...p})}}}
+        addBombs(plays,grp,vals,hand);return plays
+    }
+    if(target.type==='bomb'){
+        if(grp[3]&&grp[3].length>=2&&0>target.bombRank)plays.push({cards:grp[3].slice(0,2),type:'bomb',bombRank:0});
+        for(let v of vals)if(grp[v].length===4&&v!==3&&(v-3)>target.bombRank)plays.push({cards:grp[v].slice(),type:'bomb',bombRank:v-3});
+        if(grp[15]&&grp[15].length>=2&&12>target.bombRank)plays.push({cards:grp[15].slice(0,2),type:'bomb',bombRank:12});
+        let sj=hand.find(c=>c.value===16),bj=hand.find(c=>c.value===17);
+        if(sj&&bj&&13>target.bombRank)plays.push({cards:[sj,bj],type:'bomb',bombRank:13});
+        if(grp[3]&&grp[3].length===4&&14>target.bombRank)plays.push({cards:grp[3].slice(),type:'bomb',bombRank:14});
+        return plays
+    }
+    const tt=target.type;
+    if(tt==='single'){let seen=new Set();for(let c of hand)if(c.value>target.main&&!seen.has(c.value)){seen.add(c.value);plays.push({cards:[c],type:'single',main:c.value})}}
+    else if(tt==='pair'){for(let v of vals)if(grp[v].length>=2&&v>target.main&&v!==3&&v!==15)plays.push({cards:grp[v].slice(0,2),type:'pair',main:v})}
+    else if(tt==='triple'){for(let v of vals)if(grp[v].length>=3&&v>target.main)plays.push({cards:grp[v].slice(0,3),type:'triple',main:v})}
+    else if(tt==='triple1'){for(let v of vals)if(grp[v].length>=3&&v>target.main){let tri=grp[v].slice(0,3);for(let c of hand){if(c.value!==v){plays.push({cards:[...tri,c],type:'triple1',main:v});break}}}}
+    else if(tt==='four2'){for(let v of vals)if(grp[v].length===4&&v>target.main&&v!==3){let f=grp[v].slice(),s=[];for(let c of hand)if(c.value!==v&&s.length<2)s.push(c);if(s.length===2)plays.push({cards:[...f,...s],type:'four2',main:v})}}
+    else if(tt==='straight'){let sv=vals.filter(v=>v>=3&&v<=14);for(let i=0;i<=sv.length-target.len;i++){let r=sv.slice(i,i+target.len);if(isConsecutive(r)&&r[r.length-1]>target.main)plays.push({cards:r.map(v=>grp[v][0]),type:'straight',main:r[r.length-1],len:target.len})}}
+    else if(tt==='consec_pairs'){let pv=vals.filter(v=>grp[v].length>=2&&v>=3&&v<=14);for(let i=0;i<=pv.length-target.len;i++){let r=pv.slice(i,i+target.len);if(isConsecutive(r)&&r[r.length-1]>target.main){let cs=[];r.forEach(v=>cs.push(...grp[v].slice(0,2)));plays.push({cards:cs,type:'consec_pairs',main:r[r.length-1],len:target.len})}}}
+    else if(tt==='airplane'||tt==='airplane1'){let tv2=vals.filter(v=>grp[v].length>=3&&v>=3&&v<=14).sort((a,b)=>a-b);for(let i=0;i<=tv2.length-target.len;i++){let r=tv2.slice(i,i+target.len);if(isConsecutive(r)&&r[r.length-1]>target.main){let cs=[];r.forEach(v=>cs.push(...grp[v].slice(0,3)));if(tt==='airplane1'){let uv=new Set(r),w=[];for(let c of hand)if(!uv.has(c.value)&&w.length<target.len)w.push(c);if(w.length===target.len)cs.push(...w);else continue}let p=detectPlay(cs);if(p)plays.push({cards:cs,...p})}}}
+    addBombs(plays,grp,vals,hand);return plays
+}
+
+// ============================================
+// Network Layer
+// ============================================
+let NET={peer:null,conns:[null,null],isHost:false,myIndex:-1,roomCode:'',ready:0,
+    tokens:['','',''],disconnected:[false,false,false],reconTimers:[null,null,null],
+    myToken:'',myName:'',readyStates:[false,false,false]};
+
+function genCode(){const ch='ABCDEFGHJKLMNPQRSTUVWXYZ2345679';let c='';for(let i=0;i<4;i++)c+=ch[Math.floor(Math.random()*ch.length)];return c}
+function genToken(){return Math.random().toString(36).substr(2,12)+Date.now().toString(36)}
+
+function hostSend(idx,msg){
+    if(idx===0){handleView(msg);return}
+    if(SOLO)return;
+    let conn=NET.conns[idx-1];
+    if(conn&&conn.open)conn.send(JSON.parse(JSON.stringify(msg)));
+}
+function hostBroadcast(msgFn){for(let i=0;i<3;i++)hostSend(i,msgFn(i))}
+function clientSend(msg){if(NET.conns[0]&&NET.conns[0].open)NET.conns[0].send(msg)}
+
+function setupHostConn(conn,idx){
+    conn._idx=idx;
+    conn.on('data',data=>{
+        if(data.type==='bid')hostHandleBid(idx,data.amount);
+        else if(data.type==='play')hostHandlePlay(idx,data.cardIds);
+        else if(data.type==='pass')hostHandlePass(idx);
+        else if(data.type==='leave')hostHandleLeave(idx);
+        else if(data.type==='ready')hostHandleReady(idx);
+        else if(data.type==='backToRoom'){NET.readyStates=[false,false,false];resetG();broadcastRoomState()}
+        else if(data.type==='walletAddr')NET._playerAddrs=NET._playerAddrs||{},NET._playerAddrs[idx]=data.addr;
+    });
+    conn.on('close',()=>{
+        if(!G.phase||G.phase==='idle')hostHandleLeave(idx);
+        else hostHandleDisconnect(idx);
+    });
+}
+
+function hostHandleDisconnect(idx){
+    NET.disconnected[idx]=true;
+    hostBroadcast(i=>({type:'message',text:`${NAMES[idx]} disconnected, waiting to reconnect (60s)...`,dur:5000}));
+    for(let i=1;i<=2;i++){let c=NET.conns[i-1];if(c&&c.open)c.send({type:'paused',who:idx,name:NAMES[idx]})}
+    if(idx===0) return;
+    showOverlay(`<h2>${NAMES[idx]} Disconnected</h2><p>Waiting for reconnection<span class="wait-dot"></span></p><p class="sub">Game ends if not reconnected within 60s</p>`);
+    NET.reconTimers[idx]=setTimeout(()=>{
+        if(!NET.disconnected[idx])return;
+        let msg=`${NAMES[idx]} timed out, game over`;
+        showOverlay(`<h2>Player Left</h2><p>${msg}</p><button class="btn-big btn-ready" onclick="showLobby(true)">Back to Lobby</button>`);
+        for(let i=1;i<=2;i++){let c=NET.conns[i-1];if(c&&c.open)c.send({type:'message',text:msg,dur:10000})}
+    },60000);
+}
+
+function hostHandleReconnect(conn,idx,token){
+    if(idx<1||idx>2||NET.tokens[idx]!==token){conn.close();return false}
+    NET.conns[idx-1]=conn;
+    NET.disconnected[idx]=false;
+    if(NET.reconTimers[idx]){clearTimeout(NET.reconTimers[idx]);NET.reconTimers[idx]=null}
+    setupHostConn(conn,idx);
+    conn.send({type:'assign',index:idx,names:NAMES,room:NET.roomCode,token:token});
+    setTimeout(()=>{
+        hostBroadcast(i=>({type:'message',text:`${NAMES[idx]} reconnected!`,dur:1500}));
+        if(G.phase&&G.phase!=='idle')hostBroadcast(i=>makeView(i));
+        hideOverlay();
+    },300);
+    return true;
+}
+
+function hostHandleLeave(idx){
+    if(idx<1||idx>2)return;
+    let name=NAMES[idx];
+    if(NET.conns[idx-1]){try{NET.conns[idx-1].close()}catch(e){}}
+    NET.conns[idx-1]=null;
+    NAMES[idx]='';NET.tokens[idx]='';
+    NET.readyStates[idx]=false;
+    NET.ready=Math.max(1,NET.ready-1);
+    for(let i=0;i<2;i++){let c=NET.conns[i];if(c&&c.open)c.send({type:'message',text:`${name} left the room`,dur:1500})}
+    showMsg(`${name} left the room`,1500);
+    broadcastRoomState();
+}
+
+function hostHandleReady(idx){
+    if(idx<0||idx>2)return;
+    NET.readyStates[idx]=true;
+    broadcastRoomState();
+    if(NET.ready>=3&&NET.readyStates[0]&&NET.readyStates[1]&&NET.readyStates[2]){
+        setTimeout(()=>startOnlineGame(),1000);
+    }
+}
+
+function broadcastRoomState(){
+    let plist=[{name:NAMES[0],index:0,isHost:true,ready:NET.readyStates[0]}];
+    for(let i=0;i<2;i++){if(NET.conns[i]&&NET.conns[i].open)plist.push({name:NAMES[i+1],index:i+1,isHost:false,ready:NET.readyStates[i+1]})}
+    for(let i=0;i<2;i++){let c=NET.conns[i];if(c&&c.open)c.send({type:'roomState',players:plist,roomCode:NET.roomCode,total:NET.ready,bet:W3.currentBet,onchainGameId:W3.onchainGameId?W3.onchainGameId.toString():null})}
+    showWaiting();
+}
+
+function createRoom(name){
+    NET.roomCode=genCode();NET.isHost=true;NET.myIndex=0;NET.ready=1;
+    NET.tokens=['host','',''];NET.disconnected=[false,false,false];
+    NET._playerAddrs={0:W3.address||''};
+    NAMES[0]=name||'Player1';
+    NET.peer=new Peer(PEER_PREFIX+NET.roomCode,{debug:0});
+    NET.peer.on('open',()=>showWaiting());
+    NET.peer.on('error',err=>{
+        if(err.type==='unavailable-id'){NET.peer.destroy();NET.roomCode=genCode();createRoom(name);return}
+        showOverlay(`<h2>Connection Error</h2><p>${err.message}</p><button class="btn-big btn-ready" onclick="showLobby(true)">Back</button>`);
+    });
+    NET.peer.on('connection',conn=>{
+        let handled=false;
+        conn.on('data',function firstMsg(data){
+            if(handled)return;handled=true;
+            if(data.type==='reconnect'){
+                if(!hostHandleReconnect(conn,data.index,data.token)){
+                    conn.send({type:'message',text:'Reconnect failed: invalid credentials',dur:3000});
+                    conn.close();
+                }
+            }else if(data.type==='name'){
+                let idx=!NET.conns[0]||!NET.conns[0].open?1:(!NET.conns[1]||!NET.conns[1].open?2:-1);
+                if(idx===-1){conn.send({type:'message',text:'Room is full',dur:2000});conn.close();return}
+                NET.conns[idx-1]=conn;
+                NAMES[idx]=data.name||('Player'+(idx+1));
+                NET.tokens[idx]=genToken();
+                NET.ready++;
+                setupHostConn(conn,idx);
+                conn.send({type:'assign',index:idx,names:NAMES,room:NET.roomCode,token:NET.tokens[idx],bet:W3.currentBet,onchainGameId:W3.onchainGameId?W3.onchainGameId.toString():null});
+                setTimeout(()=>broadcastRoomState(),200);
+            }
+        });
+    });
+}
+
+function joinRoom(code,name){
+    NET.roomCode=code.toUpperCase().trim();NET.isHost=false;
+    NET.myName=name||'Player';
+    if(!NET.peer||NET.peer.destroyed){
+        NET.peer=new Peer(undefined,{debug:0});
+        NET.peer.on('open',()=>connectToHost());
+        NET.peer.on('error',err=>{showOverlay(`<h2>Connection Error</h2><p>${err.message}</p><button class="btn-big btn-ready" onclick="showLobby(true)">Back</button>`)});
+    }else{
+        connectToHost();
+    }
+}
+
+function connectToHost(){
+    let conn=NET.peer.connect(PEER_PREFIX+NET.roomCode,{reliable:true});
+    let connected=false;
+    conn.on('open',()=>{
+        connected=true;NET.conns=[conn];
+        if(NET.myToken&&NET.myIndex>=0){
+            conn.send({type:'reconnect',token:NET.myToken,index:NET.myIndex});
+            showOverlay(`<h2>Reconnecting</h2><p>Restoring game<span class="wait-dot"></span></p>`);
+        }else{
+            conn.send({type:'name',name:NET.myName});
+            showOverlay(`<h2>Joining</h2><p>Connecting<span class="wait-dot"></span></p>`);
+        }
+    });
+    conn.on('data',data=>{
+        if(data.type==='assign'){
+            NET.myIndex=data.index;NAMES=data.names;
+            if(data.token)NET.myToken=data.token;
+            if(data.bet)W3.currentBet=data.bet;
+            if(data.onchainGameId)W3.onchainGameId=BigInt(data.onchainGameId);
+            // Send wallet address to host
+            if(W3.address)clientSend({type:'walletAddr',addr:W3.address});
+            try{sessionStorage.setItem('ddz_session',JSON.stringify({room:NET.roomCode,index:NET.myIndex,token:NET.myToken,name:NET.myName,onchainGameId:W3.onchainGameId?W3.onchainGameId.toString():null}))}catch(e){}
+        }
+        else if(data.type==='names'){NAMES=data.names}
+        else if(data.type==='view')handleView(data);
+        else if(data.type==='roomState'){if(data.bet)W3.currentBet=data.bet;showClientRoom(data)}
+        else if(data.type==='message')showMsg(data.text,data.dur||1500);
+        else if(data.type==='paused')showOverlay(`<h2>${data.name} Disconnected</h2><p>Waiting for reconnection<span class="wait-dot"></span></p>`);
+    });
+    conn.on('close',()=>{
+        showOverlay(`<h2>Disconnected</h2><p>Attempting to reconnect<span class="wait-dot"></span></p>`);
+        NET._reconAttempts=0;
+        attemptReconnect();
+    });
+    setTimeout(()=>{if(!connected)showOverlay(`<h2>Connection Failed</h2><p>Room ${NET.roomCode} not found</p><button class="btn-big btn-ready" onclick="showLobby(true)">Back</button>`)},8000);
+}
+
+function attemptReconnect(){
+    NET._reconAttempts=(NET._reconAttempts||0)+1;
+    if(NET._reconAttempts>3){
+        let refundHint = W3.onchainGameId !== null
+            ? `<p style="font-size:13px;color:#ffd700;margin-top:10px">1 USDC bet placed, timeout refund available after 1 min</p>
+               <button class="btn-big" style="background:#e67e22;margin-top:8px" onclick="doClaimTimeout()">Claim Refund</button>`
+            : '';
+        showOverlay(`<h2>Host Disconnected</h2><p>Room is no longer available</p>${refundHint}<div style="margin-top:8px"><button class="btn-big btn-ready" onclick="showLobby(true)">Back to Lobby</button></div>`);
+        return;
+    }
+    setTimeout(()=>{
+        if(!NET.peer||NET.peer.destroyed){
+            NET.peer=new Peer(undefined,{debug:0});
+            NET.peer.on('open',()=>connectToHost());
+            NET.peer.on('error',()=>{attemptReconnect()});
+        }else{
+            connectToHost();
+        }
+    },2000);
+}
+
+// ============================================
+// Game State (host only)
+// ============================================
+let G={};
+function resetG(){
+    G={deck:[],hands:[[],[],[]],bottom:[],landlord:-1,current:0,lastPlay:null,passCount:0,
+       phase:'idle',bidder:0,highBid:0,highBidder:-1,bidCount:0,bombMul:1,baseBet:0,
+       tableSlots:[{},{},{}]};
+}
+
+function makeView(idx){
+    return{type:'view',screen:G.phase,myIndex:idx,
+        myHand:G.hands[idx],names:NAMES,
+        players:[0,1,2].map(i=>({name:NAMES[i],count:G.hands[i].length,isLandlord:G.landlord===i})),
+        tableSlots:G.tableSlots,bottomCards:G.bottom,bottomRevealed:G.landlord!==-1,
+        current:G.current,isMyTurn:G.current===idx,
+        canPass:G.lastPlay!==null&&G.lastPlay.player!==idx,
+        lastPlay:G.lastPlay,bidMaxSoFar:G.highBid,
+        gameOver:G.phase==='over'?G._overInfo:null,
+        bet:W3.currentBet}
+}
+
+// ============================================
+// Game Flow (host only)
+// ============================================
+function startOnlineGame(){
+    if(!SOLO){
+        if(NET.isHost&&NET.ready<3){showMsg('Need 3 players to start');return}
+        if(NET.isHost&&!(NET.readyStates[0]&&NET.readyStates[1]&&NET.readyStates[2]))return;
+    }
+    if(!BGM.playing&&!BGM.muted)bgmStart();
+    resetG();
+    G.deck=createDeck();shuffle(G.deck);
+    G.hands[0]=sortCards(G.deck.slice(0,16));
+    G.hands[1]=sortCards(G.deck.slice(16,32));
+    G.hands[2]=sortCards(G.deck.slice(32,48));
+    G.bottom=G.deck.slice(48,52);
+    G.phase='bid';G.bidder=Math.floor(Math.random()*3);G.bidCount=0;
+    G.tableSlots=[{},{},{}];
+    hostBroadcast(i=>({type:'message',text:'Game started! Bidding phase',dur:1500}));
+    setTimeout(()=>hostBidTurn(),1800);
+}
+
+function hostBidTurn(){
+    if(G.highBid===3||G.bidCount>=3){hostFinishBid();return}
+    G.current=G.bidder;G.phase='bid';
+    hostBroadcast(i=>makeView(i));
+    if(SOLO&&G.current!==0)setTimeout(()=>aiBid(G.current),1000);
+}
+
+function hostHandleBid(idx,amount){
+    if(G.phase!=='bid'||G.current!==idx)return;
+    if(amount>0&&amount>G.highBid&&amount<=3){G.highBid=amount;G.highBidder=idx}
+    G.bidCount++;G.bidder=(G.bidder+1)%3;
+    let text=amount>0?`${NAMES[idx]}: ${amount} pts`:`${NAMES[idx]}: Pass`;
+    hostBroadcast(i=>({type:'message',text,dur:1200}));
+    setTimeout(()=>hostBidTurn(),1400);
+}
+
+function hostFinishBid(){
+    if(G.highBidder===-1){
+        hostBroadcast(i=>({type:'message',text:'No one bid, redealing!',dur:2000}));
+        setTimeout(()=>startOnlineGame(),2500);return;
+    }
+    G.landlord=G.highBidder;G.baseBet=G.highBid;
+    G.hands[G.landlord].push(...G.bottom);sortCards(G.hands[G.landlord]);
+    hostBroadcast(i=>({type:'message',text:`${NAMES[G.landlord]} is the Landlord!`,dur:2000}));
+    G.phase='play';G.current=G.landlord;G.lastPlay=null;G.passCount=0;
+    G.tableSlots=[{},{},{}];
+    setTimeout(()=>{hostBroadcast(i=>makeView(i));if(SOLO&&G.current!==0)setTimeout(()=>aiPlay(G.current),800)},2200);
+}
+
+function hostHandlePlay(idx,cardIds){
+    if(G.phase!=='play'||G.current!==idx)return;
+    let idSet=new Set(cardIds);
+    let selCards=G.hands[idx].filter(c=>idSet.has(c.id));
+    if(selCards.length===0)return;
+    let play=detectPlay(selCards);
+    if(!play){hostSend(idx,{type:'message',text:'Invalid play!'});return}
+    let target=(G.lastPlay&&G.lastPlay.player!==idx)?G.lastPlay:null;
+    if(target&&!canBeat(play,target)){hostSend(idx,{type:'message',text:'Cannot beat!'});return}
+    G.hands[idx]=G.hands[idx].filter(c=>!idSet.has(c.id));
+    G.lastPlay={cards:sortCards([...selCards]),...play,player:idx};
+    G.passCount=0;G.bombMul*=getBombMul(play);
+    G.tableSlots=[{},{},{}];G.tableSlots[idx]={cards:sortCards([...selCards])};
+    let text=`${NAMES[idx]}: ${getTypeName(play)}`;
+    hostBroadcast(i=>({type:'message',text,dur:1500}));
+    if(G.hands[idx].length===0){setTimeout(()=>hostGameOver(idx),1600);return}
+    G.current=(idx+1)%3;
+    setTimeout(()=>{hostBroadcast(i=>makeView(i));if(SOLO&&G.current!==0)setTimeout(()=>aiPlay(G.current),800)},1800);
+}
+
+function hostHandlePass(idx){
+    if(G.phase!=='play'||G.current!==idx)return;
+    if(G.lastPlay&&G.lastPlay.player===idx)return;
+    G.passCount++;
+    G.tableSlots[idx]={label:'Pass'};
+    hostBroadcast(i=>({type:'message',text:`${NAMES[idx]}: Pass`,dur:1000}));
+    let roundOver=G.passCount>=2;
+    if(roundOver){G.lastPlay=null;G.passCount=0}
+    G.current=(idx+1)%3;
+    setTimeout(()=>{
+        hostBroadcast(i=>makeView(i));
+        if(roundOver){
+            setTimeout(()=>{
+                G.tableSlots=[{},{},{}];
+                hostBroadcast(i=>makeView(i));
+                if(SOLO&&G.current!==0)setTimeout(()=>aiPlay(G.current),800);
+            },1000);
+        }else{
+            if(SOLO&&G.current!==0)setTimeout(()=>aiPlay(G.current),800);
+        }
+    },1400);
+}
+
+function hostGameOver(winner){
+    G.phase='over';
+    let landlordWin=winner===G.landlord,score=G.baseBet*G.bombMul;
+    let title,detail;
+    if(landlordWin){
+        title=`${NAMES[winner]}(Landlord) Wins!`;
+        let f=[0,1,2].filter(i=>i!==G.landlord);
+        detail=`${NAMES[winner]} +${score*2}pts | ${NAMES[f[0]]} -${score}pts | ${NAMES[f[1]]} -${score}pts`;
+    }else{
+        let f=[0,1,2].filter(i=>i!==G.landlord);
+        title=`Farmers Win! ${NAMES[f[0]]} & ${NAMES[f[1]]}`;
+        detail=`${NAMES[G.landlord]}(Landlord) -${score*2}pts | ${NAMES[f[0]]} +${score}pts | ${NAMES[f[1]]} +${score}pts`;
+    }
+    G._overInfo={title,detail,score,baseBet:G.baseBet,bombMul:G.bombMul,winnerIdx:winner};
+    hostBroadcast(i=>makeView(i));
+
+    // Web3 settlement (host auto-calls)
+    if(NET.isHost && W3.contract && W3.onchainGameId !== null) {
+        // Get winner's wallet address
+        let winnerAddr;
+        if(winner === 0) winnerAddr = W3.address;
+        else winnerAddr = NET._playerAddrs && NET._playerAddrs[winner];
+        if(winnerAddr) {
+            web3SettleGame(W3.onchainGameId, winnerAddr).then(ok => {
+                if(ok) hostBroadcast(i=>({type:'message',text:'On-chain settlement complete! USDC sent to winner',dur:3000}));
+            });
+        }
+    }
+}
+
+// ============================================
+// Client: receive view and render
+// ============================================
+let VIEW=null, selected=new Set(), hints=[], hintIdx=0;
+
+function handleView(data){
+    let v=data.data||data;
+    if(v.screen)VIEW=v;
+    else if(v.type==='view')VIEW=v;
+    else return;
+    selected.clear();hints=[];hintIdx=0;
+    renderGame();
+}
+
+// ============================================
+// UI Rendering
+// ============================================
+function cardHTML(card,extra=''){
+    if(!card)return'';
+    if(card.value>=16){let cls=card.value===16?'joker-small':'joker-big';let icon=card.value===16?'🃏':'🤡';return`<div class="card ${cls} ${extra}" data-id="${card.id}"><span class="val">${card.display}</span><span class="suit">${icon}</span></div>`}
+    let color=RED_SUITS.has(card.suit)?'red':'black';
+    const ICONS={3:'🌱',4:'🍀',5:'🖐️',6:'🎲',7:'🌈',8:'🎱',9:'🔮',10:'🔥',11:'🗡️',12:'👸',13:'👑',14:'🏆',15:'💣'};
+    let icon=ICONS[card.value]||card.suit;
+    return`<div class="card ${color} ${extra}" data-id="${card.id}"><span class="val">${card.display}<span style="font-size:10px;margin-left:1px">${card.suit}</span></span><span class="suit">${icon}</span></div>`
+}
+
+function renderGame(){
+    if(!VIEW)return;
+    hideOverlay();
+    let v=VIEW,mi=v.myIndex;
+    let leftIdx=(mi+2)%3, rightIdx=(mi+1)%3;
+    let rtag=document.getElementById('room-tag');
+    if(SOLO){rtag.textContent='Solo Mode';rtag.style.display=''}
+    else if(NET.roomCode){rtag.textContent='Room '+NET.roomCode+' | 1 USDC';rtag.style.display=''}
+    else rtag.style.display='none';
+    let badgeL=document.getElementById('badge-left');
+    badgeL.className='player-badge'+(v.current===leftIdx?' active':'')+(v.players[leftIdx].isLandlord?' landlord':'');
+    document.getElementById('pname-left').textContent=v.players[leftIdx].name+' (Prev)';
+    let cntL=document.getElementById('pcount-left');
+    cntL.textContent=v.players[leftIdx].count+' cards';cntL.className='p-count'+(v.players[leftIdx].count===0?' zero':'');
+    let badgeR=document.getElementById('badge-right');
+    badgeR.className='player-badge'+(v.current===rightIdx?' active':'')+(v.players[rightIdx].isLandlord?' landlord':'');
+    document.getElementById('pname-right').textContent=v.players[rightIdx].name+' (Next)';
+    let cntR=document.getElementById('pcount-right');
+    cntR.textContent=v.players[rightIdx].count+' cards';cntR.className='p-count'+(v.players[rightIdx].count===0?' zero':'');
+    let bc=document.getElementById('bottom-cards');
+    if(v.bottomRevealed&&v.bottomCards)bc.innerHTML=v.bottomCards.map(c=>cardHTML(c,'card-xs')).join('');
+    else bc.innerHTML='<span style="color:#666;font-size:12px">🂠🂠🂠🂠</span>';
+    let elL=document.getElementById('play-left');elL.innerHTML='';
+    let slotL=v.tableSlots[leftIdx];
+    if(slotL&&slotL.cards)slotL.cards.forEach(c=>{elL.innerHTML+=cardHTML(c,'card-sm')});
+    else if(slotL&&slotL.label)elL.innerHTML=`<span class="slot-label">${slotL.label}</span>`;
+    let elR=document.getElementById('play-right');elR.innerHTML='';
+    let slotR=v.tableSlots[rightIdx];
+    if(slotR&&slotR.cards)slotR.cards.forEach(c=>{elR.innerHTML+=cardHTML(c,'card-sm')});
+    else if(slotR&&slotR.label)elR.innerHTML=`<span class="slot-label">${slotR.label}</span>`;
+    document.getElementById('center-play').innerHTML='';
+    let elM=document.getElementById('my-play');elM.innerHTML='';
+    let slotM=v.tableSlots[mi];
+    if(slotM&&slotM.cards)slotM.cards.forEach(c=>{elM.innerHTML+=cardHTML(c,'card-sm')});
+    else if(slotM&&slotM.label)elM.innerHTML=`<span class="slot-label">${slotM.label}</span>`;
+    let hel=document.getElementById('hand-cards');hel.innerHTML='';
+    let hlbl=document.getElementById('hand-label');
+    hlbl.textContent=v.players[mi].name+"'s Hand"+(v.players[mi].isLandlord?' [Landlord]':'');
+    hlbl.style.color=v.current===mi?'#ffd700':'#2ecc71';
+    if(v.myHand)v.myHand.forEach(c=>{
+        let sel=selected.has(c.id)?'selected':'';
+        hel.innerHTML+=cardHTML(c,`hand-card ${sel}`);
+    });
+    let dragMode=0,dragTouched=new Set(),isDragging=false,dragStartEl=null;
+    function toggleCard(el){let id=parseInt(el.dataset.id);if(selected.has(id)){selected.delete(id);el.classList.remove('selected')}else{selected.add(id);el.classList.add('selected')}}
+    function applyDrag(el){let id=parseInt(el.dataset.id);if(dragTouched.has(id))return;dragTouched.add(id);if(dragMode===1){selected.add(id);el.classList.add('selected')}else if(dragMode===-1){selected.delete(id);el.classList.remove('selected')}}
+    function cardFromPoint(x,y){let el=document.elementFromPoint(x,y);if(!el)return null;return el.closest('.hand-card')}
+    hel.querySelectorAll('.card').forEach(el=>{
+        el.addEventListener('mousedown',e=>{e.preventDefault();let id=parseInt(el.dataset.id);dragMode=selected.has(id)?-1:1;dragStartEl=el;dragTouched.clear();isDragging=false});
+        el.addEventListener('mouseenter',()=>{if(!dragMode||el===dragStartEl)return;if(!isDragging){isDragging=true;applyDrag(dragStartEl)}applyDrag(el)});
+        el.addEventListener('mouseup',()=>{if(!isDragging)toggleCard(el);dragMode=0;dragStartEl=null});
+        el.addEventListener('touchstart',e=>{let id=parseInt(el.dataset.id);dragMode=selected.has(id)?-1:1;dragStartEl=el;dragTouched.clear();isDragging=false},{passive:true});
+        el.addEventListener('touchend',()=>{if(!isDragging)toggleCard(el);dragMode=0;dragStartEl=null});
+    });
+    hel.addEventListener('touchmove',e=>{if(!dragMode||!e.touches[0])return;let el=cardFromPoint(e.touches[0].clientX,e.touches[0].clientY);if(el&&el!==dragStartEl){if(!isDragging){isDragging=true;applyDrag(dragStartEl)}applyDrag(el)}},{passive:true});
+    document.addEventListener('mouseup',()=>{dragMode=0;dragStartEl=null},{once:true});
+    let ctrl=document.getElementById('controls');
+    let isMyPlay=v.isMyTurn&&v.screen==='play';
+    ctrl.querySelectorAll('.btn').forEach(b=>b.disabled=!isMyPlay);
+    if(isMyPlay)document.getElementById('btn-pass').disabled=!v.canPass;
+    if(v.screen==='bid'&&v.isMyTurn)showBidInTable(v.bidMaxSoFar);
+    else if(v.screen==='bid'&&!v.isMyTurn)showBidInTable(-1,v.players[v.current].name);
+    if(v.screen==='over'&&v.gameOver){
+        let o=v.gameOver;
+        try{sessionStorage.removeItem('ddz_session')}catch(e){}
+        let betInfo = W3.onchainGameId !== null ? `<p style="font-size:13px;color:#ffd700;margin-top:8px">USDC Bet: 1 x 3 = 3 USDC to Winner</p>` : '';
+        let overBtns=SOLO
+            ?`<button class="btn-big btn-restart" onclick="startOnlineGame()">Play Again</button><button class="btn-big" style="background:#7f8c8d;margin-top:6px" onclick="showLobby(true)">Back to Lobby</button>`
+            :`<button class="btn-big btn-restart" onclick="backToRoom()">Play Again</button>`;
+        showOverlay(`<h2>${o.title}</h2><p>${o.detail}</p><p style="font-size:13px;color:#888">Base ${o.baseBet} x Multiplier ${o.bombMul} = ${o.score}</p>${betInfo}${overBtns}`);
+    }
+}
+
+function showBidInTable(maxBid,waitName){
+    let el=document.getElementById('center-play');
+    if(waitName){
+        el.innerHTML=`<div style="text-align:center"><div style="font-size:16px;font-weight:bold;color:#ffd700;margin-bottom:4px">Bidding Phase</div><div style="font-size:13px;color:#aaa">Waiting for ${waitName} to bid<span class="wait-dot"></span></div></div>`;
+    }else{
+        let btns='';
+        for(let i=maxBid+1;i<=3;i++)btns+=`<button class="btn-big btn-bid" style="padding:8px 20px;font-size:15px" onclick="onBid(${i})">${i} pts</button>`;
+        btns+=`<button class="btn-big btn-bid pass" style="padding:8px 20px;font-size:15px" onclick="onBid(0)">Pass</button>`;
+        el.innerHTML=`<div style="text-align:center"><div style="font-size:15px;font-weight:bold;color:#ffd700;margin-bottom:8px">Your turn to bid</div><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${btns}</div></div>`;
+    }
+}
+
+function showMsg(text,dur=1500){
+    let el=document.getElementById('msg');el.textContent=text;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),dur);
+    if(text.includes('Super Bomb'))sfxSuperBomb();
+    else if(text.includes('Rocket'))sfxRocket();
+    else if(text.includes('Bomb'))sfxBomb();
+    else if(text.includes('Airplane'))sfxAirplane();
+    else if(text.includes('Straight'))sfxStraight();
+    else if(text.includes('Consecutive'))sfxConsecPairs();
+    else if(text.includes('Four+2'))sfxFour2();
+    else if(text.includes('Triple+1'))sfxTriple1();
+    else if(text.includes('Triple'))sfxTriple();
+    else if(text.includes('Pair'))sfxPair();
+    else if(text.includes('Single'))sfxSingle();
+    else if(text.includes('Pass'))sfxPass();
+}
+function showOverlay(html){document.getElementById('overlay').classList.remove('hidden');document.getElementById('overlay-box').innerHTML=html}
+function hideOverlay(){document.getElementById('overlay').classList.add('hidden')}
+
+function renderRoomOnTable(players,myIdx,roomCode,totalCount,canLeave){
+    hideOverlay();
+    let rtag=document.getElementById('room-tag');
+    rtag.textContent='Room '+roomCode+' | 1 USDC';rtag.style.display='';
+    rtag.title='Click to copy room code';
+    let leftIdx=(myIdx+2)%3, rightIdx=(myIdx+1)%3;
+    function renderSide(side,idx,label){
+        let badge=document.getElementById('badge-'+side);
+        let play=document.getElementById('play-'+side);
+        let p=players.find(x=>x.index===idx);
+        if(p){
+            badge.className='player-badge'+(p.ready?' active':'');
+            document.getElementById('pname-'+side).textContent=p.name+' ('+label+')';
+            document.getElementById('pcount-'+side).textContent=p.isHost?'Host':'';
+            play.innerHTML=p.ready
+                ?'<span style="color:#2ecc71;font-size:14px;font-weight:bold">&#10003; Ready</span>'
+                :'<span style="color:#f39c12;font-size:13px">Not Ready</span>';
+        }else{
+            badge.className='player-badge';
+            document.getElementById('pname-'+side).textContent=label;
+            document.getElementById('pcount-'+side).textContent='';
+            play.innerHTML='<span style="color:#666;font-size:12px">Waiting to join<span class="wait-dot"></span></span>';
+        }
+    }
+    renderSide('left',leftIdx,'Prev');
+    renderSide('right',rightIdx,'Next');
+    let rc=players.filter(p=>p.ready).length;
+    let statusText;
+    if(totalCount<3)statusText=`Waiting for players (${totalCount}/3)<span class="wait-dot"></span>`;
+    else if(rc<3)statusText=`Waiting for all ready (${rc}/3)<span class="wait-dot"></span>`;
+    else statusText='<span style="color:#2ecc71;font-weight:bold">All ready, starting soon!</span>';
+    document.getElementById('center-play').innerHTML=
+        `<div style="text-align:center">
+        <div class="room-code" style="font-size:38px;margin:4px 0">${roomCode}</div>
+        <div style="font-size:12px;color:#aaa;margin-bottom:8px">Click room code above to copy</div>
+        <div style="font-size:14px;margin-top:6px">${statusText}</div>
+        </div>`;
+    let me=players.find(x=>x.index===myIdx);
+    let myHtml='';
+    if(me&&me.ready)myHtml='<span style="color:#2ecc71;font-size:14px;font-weight:bold">&#10003; Ready</span>';
+    else myHtml='<button class="btn" style="padding:7px 24px;font-size:14px;background:#e67e22" onclick="onReady()">Ready</button>';
+    if(canLeave)myHtml+=' <button class="btn" style="padding:7px 18px;font-size:13px;background:#e74c3c;margin-left:8px" onclick="leaveRoom()">Leave</button>';
+    if(!canLeave && W3.onchainGameId !== null) myHtml+=' <button class="btn" style="padding:7px 18px;font-size:13px;background:#e74c3c;margin-left:8px" onclick="doCancelGame()">Refund & Disband</button>';
+    document.getElementById('my-play').innerHTML=myHtml;
+    let hlbl=document.getElementById('hand-label');
+    hlbl.textContent=me?me.name+(me.isHost?' (Host)':''):'';
+    hlbl.style.color='#2ecc71';
+    document.getElementById('hand-cards').innerHTML='';
+}
+
+function showWaiting(){
+    let players=[];
+    for(let i=0;i<3;i++){
+        let occupied=i===0||(NET.conns[i-1]&&NET.conns[i-1].open&&NAMES[i]);
+        if(occupied&&NAMES[i])players.push({index:i,name:NAMES[i],isHost:i===0,ready:NET.readyStates[i]});
+    }
+    renderRoomOnTable(players,0,NET.roomCode,NET.ready,false);
+}
+
+function showClientRoom(data){
+    renderRoomOnTable(data.players,NET.myIndex,data.roomCode,data.total,true);
+}
+
+// ============================================
+// Player Actions
+// ============================================
+function onBid(amount){
+    let el=document.getElementById('center-play');if(el)el.innerHTML='';
+    if(NET.isHost)hostHandleBid(0,amount);
+    else clientSend({type:'bid',amount});
+}
+function onPlay(){
+    if(!VIEW||!VIEW.isMyTurn)return;
+    let hand=VIEW.myHand||[];
+    let selCards=hand.filter(c=>selected.has(c.id));
+    if(selCards.length===0){showMsg('Select cards to play');return}
+    let play=detectPlay(selCards);
+    if(!play){showMsg('Invalid play!');return}
+    let target=(VIEW.lastPlay&&VIEW.lastPlay.player!==VIEW.myIndex)?VIEW.lastPlay:null;
+    if(target&&!canBeat(play,target)){showMsg('Cannot beat!');return}
+    let cardIds=selCards.map(c=>c.id);
+    if(NET.isHost)hostHandlePlay(0,cardIds);
+    else clientSend({type:'play',cardIds});
+}
+function onPass(){
+    if(!VIEW||!VIEW.isMyTurn)return;
+    if(NET.isHost)hostHandlePass(0);
+    else clientSend({type:'pass'});
+}
+function onHint(){
+    if(!VIEW||!VIEW.isMyTurn||!VIEW.myHand)return;
+    let target=(VIEW.lastPlay&&VIEW.lastPlay.player!==VIEW.myIndex)?VIEW.lastPlay:null;
+    if(hints.length===0){
+        hints=findAllPlays(VIEW.myHand,target);
+        hints.sort((a,b)=>{if(a.type==='bomb'&&b.type!=='bomb')return 1;if(a.type!=='bomb'&&b.type==='bomb')return -1;return(a.main||a.bombRank||0)-(b.main||b.bombRank||0)});
+        hintIdx=0;
+    }
+    if(hints.length===0){showMsg('No playable cards');return}
+    let h=hints[hintIdx%hints.length];hintIdx++;
+    selected.clear();h.cards.forEach(c=>selected.add(c.id));
+    let hel=document.getElementById('hand-cards');
+    hel.querySelectorAll('.card').forEach(el=>{
+        let id=parseInt(el.dataset.id);
+        if(selected.has(id))el.classList.add('selected');else el.classList.remove('selected');
+    });
+}
+
+// ============================================
+// AI (Solo Mode)
+// ============================================
+function aiBid(idx){
+    if(G.phase!=='bid'||G.current!==idx)return;
+    let hand=G.hands[idx],grp=groupByValue(hand),vals=Object.keys(grp).map(Number);
+    let bombs=0;
+    for(let v of vals)if(grp[v].length===4)bombs++;
+    let sj=hand.find(c=>c.value===16),bj=hand.find(c=>c.value===17);
+    if(sj&&bj)bombs++;
+    let high=hand.filter(c=>c.value>=14).length;
+    let score=bombs*3+high;
+    let maxBid=0;
+    if(score>=8)maxBid=3;else if(score>=5)maxBid=2;else if(score>=2)maxBid=1;
+    let bid=0;
+    if(maxBid>G.highBid)bid=G.highBid+1;
+    if(bid>0&&Math.random()<0.2)bid=0;
+    hostHandleBid(idx,bid);
+}
+
+function aiPlay(idx){
+    if(G.phase!=='play'||G.current!==idx)return;
+    let hand=G.hands[idx];
+    let target=(G.lastPlay&&G.lastPlay.player!==idx)?G.lastPlay:null;
+    let canPass=G.lastPlay!==null&&G.lastPlay.player!==idx;
+    let plays=findAllPlays(hand,target);
+    if(plays.length===0){
+        if(canPass)hostHandlePass(idx);
+        else if(hand.length>0)hostHandlePlay(idx,[hand[0].id]);
+        return;
+    }
+    let normal=plays.filter(p=>p.type!=='bomb');
+    let bombs=plays.filter(p=>p.type==='bomb');
+    if(normal.length>0){
+        normal.sort((a,b)=>{let ac=a.cards.length,bc=b.cards.length;if(ac!==bc)return ac-bc;return(a.main||0)-(b.main||0)});
+        hostHandlePlay(idx,normal[0].cards.map(c=>c.id));
+    }else if(!canPass||hand.length<=4){
+        bombs.sort((a,b)=>(a.bombRank||0)-(b.bombRank||0));
+        hostHandlePlay(idx,bombs[0].cards.map(c=>c.id));
+    }else{
+        hostHandlePass(idx);
+    }
+}
+
+// ============================================
+// Lobby
+// ============================================
+function showLobby(clearSession){
+    SOLO=false;
+    if(NET.peer){try{NET.peer.destroy()}catch(e){}}
+    NET={peer:null,conns:[null,null],isHost:false,myIndex:-1,roomCode:'',ready:0,
+        tokens:['','',''],disconnected:[false,false,false],reconTimers:[null,null,null],
+        myToken:'',myName:'',readyStates:[false,false,false]};
+    VIEW=null;selected.clear();
+    document.getElementById('hand-cards').innerHTML='';
+    document.getElementById('hand-label').textContent='';
+    document.getElementById('controls').querySelectorAll('.btn').forEach(b=>b.disabled=true);
+    document.getElementById('play-left').innerHTML='';document.getElementById('play-right').innerHTML='';document.getElementById('center-play').innerHTML='';document.getElementById('my-play').innerHTML='';
+    document.getElementById('pname-left').textContent='-';document.getElementById('pcount-left').textContent='';
+    document.getElementById('pname-right').textContent='-';document.getElementById('pcount-right').textContent='';
+    document.getElementById('badge-left').className='player-badge';document.getElementById('badge-right').className='player-badge';
+    document.getElementById('bottom-cards').innerHTML='';
+    if(clearSession)try{sessionStorage.removeItem('ddz_session')}catch(e){}
+    let resumeHTML='';
+    try{
+        let saved=sessionStorage.getItem('ddz_session');
+        if(saved&&!clearSession){
+            let s=JSON.parse(saved);
+            if(s.room&&s.token&&s.index>=0){
+                resumeHTML=`<div style="border:2px solid #e67e22;border-radius:12px;padding:14px;margin-bottom:18px;background:rgba(230,126,34,.15)">
+                    <div style="font-size:15px;font-weight:bold;color:#e67e22;margin-bottom:6px">Unfinished game detected</div>
+                    <div style="font-size:13px;color:#aaa;margin-bottom:10px">Room: ${s.room} | Name: ${s.name}</div>
+                    <button class="btn-big" style="background:#e67e22" onclick="resumeGame()">Resume Game</button>
+                    <button class="btn-big" style="background:#7f8c8d;font-size:14px;padding:8px 16px" onclick="clearAndShowLobby()">Abandon</button>
+                </div>`;
+            }
+        }
+    }catch(e){}
+
+    let refundHTML = '';
+    if(W3.onchainGameId !== null && W3.address) {
+        refundHTML = `<div style="border:2px solid #e74c3c;border-radius:12px;padding:14px;margin-bottom:18px;background:rgba(231,76,60,.15)">
+            <div style="font-size:15px;font-weight:bold;color:#e74c3c;margin-bottom:6px">Unsettled on-chain game #${W3.onchainGameId.toString()}</div>
+            <div style="font-size:13px;color:#aaa;margin-bottom:10px">Bet 1 USDC | Refund available 1 min after creation</div>
+            <button class="btn-big" style="background:#e74c3c" onclick="doClaimTimeout()">Claim Refund</button>
+            <button class="btn-big" style="background:#7f8c8d;font-size:14px;padding:8px 16px" onclick="W3.onchainGameId=null;try{sessionStorage.removeItem('ddz_onchainGameId')}catch(e){};showLobby(false)">Dismiss</button>
+        </div>`;
+    }
+
+    let walletStatus = W3.address
+        ? `<span class="web3-badge on" style="cursor:pointer" onclick="doSwitchWallet()" title="Click to switch wallet">${W3.address.slice(0,6)}...${W3.address.slice(-4)}</span>
+           <button class="btn" style="padding:3px 10px;font-size:11px;background:#e74c3c" onclick="doDisconnectWallet()">Disconnect</button>`
+        : `<button class="btn" style="padding:5px 14px;font-size:12px;background:#3498db" onclick="doConnectWallet(this)">Connect Wallet</button>`;
+
+    let passStatus = W3.gamePass
+        ? '<span class="web3-badge on">Pass Active</span>'
+        : '<button class="btn" style="padding:5px 14px;font-size:12px;background:#9b59b6" onclick="buyGamePass().then(()=>showLobby(false))">Buy Pass $0.01</button>';
+
+    showOverlay(`
+        <h2>Doudizhu <span style="font-size:14px;color:#ffd700">Arc Edition</span></h2>
+        <p style="font-size:13px;color:#aaa;margin-bottom:8px">Web3 Battle | USDC Betting | On-chain Leaderboard</p>
+        <div style="display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+            ${walletStatus}
+            ${passStatus}
+        </div>
+        ${resumeHTML}
+        ${refundHTML}
+        <div style="margin-bottom:14px">
+            <div style="margin-bottom:8px;font-size:13px;color:#aaa">Your Nickname</div>
+            <input class="name-input" id="inp-name" placeholder="Enter nickname" maxlength="8" value="">
+        </div>
+        <div style="margin-bottom:14px">
+            <div style="font-size:14px;color:#ffd700;font-weight:bold">Stake: 1 USDC / game</div>
+        </div>
+        <div style="margin-bottom:16px">
+            <button class="btn-big" style="background:linear-gradient(135deg,#e74c3c,#c0392b);font-size:18px;padding:14px 36px" onclick="doSolo()">Solo Mode</button>
+            <div style="font-size:12px;color:#999;margin-top:4px">1 player + 2 AI (no betting)</div>
+        </div>
+        <div style="border-top:1px solid rgba(255,255,255,.15);padding-top:14px;margin-bottom:14px">
+            <button class="btn-big btn-ready" onclick="doCreate()">Create Room</button>
+        </div>
+        <div style="border-top:1px solid rgba(255,255,255,.15);padding-top:14px">
+            <div style="margin-bottom:8px;font-size:14px">Join Room</div>
+            <input class="room-input" id="inp-room" placeholder="Room Code" maxlength="4">
+            <div style="margin-top:8px"><button class="btn-big btn-ready" onclick="doJoin()">Join</button></div>
+        </div>
+    `);
+}
+
+async function doConnectWallet(btn) {
+    btn.disabled = true;
+    btn.textContent = 'Connecting...';
+    try {
+        const ok = await connectWallet();
+        if (ok) {
+            showLobby(false); // Refresh lobby with new state
+        } else {
+            btn.disabled = false;
+            btn.textContent = 'Connect Wallet';
+        }
+    } catch(e) {
+        console.error(e);
+        btn.disabled = false;
+        btn.textContent = 'Connect Wallet';
+    }
+}
+
+
+async function doCreate(){
+    let name=document.getElementById('inp-name').value.trim()||'Player1';
+    if(!BGM.playing&&!BGM.muted)bgmStart();
+
+    // Balance check
+    if(W3.address && parseFloat(W3.balance) < 10) {
+        showMsg('Insufficient balance (need 10 USDC)', 3000); return;
+    }
+
+    // If wallet connected, create on-chain game (fixed 1 USDC)
+    if(W3.address && W3.contract) {
+        let gameId = await web3CreateGame('1');
+        if(gameId === null) {
+            showMsg('On-chain game creation failed, using free mode', 2000);
+            W3.onchainGameId = null;
+        }
+    } else {
+        W3.onchainGameId = null;
+    }
+
+    createRoom(name);
+}
+async function doJoin(){
+    let code=document.getElementById('inp-room').value.trim();
+    if(code.length!==4){showMsg('Enter 4-digit room code');return}
+    let name=document.getElementById('inp-name').value.trim()||'Player';
+    // Balance check
+    if(W3.address && parseFloat(W3.balance) < 10) {
+        showMsg('Insufficient balance (need 10 USDC)', 3000); return;
+    }
+    if(!BGM.playing&&!BGM.muted)bgmStart();
+    joinRoom(code,name);
+}
+function doSolo(){
+    let name=document.getElementById('inp-name').value.trim()||'Player';
+    W3.currentBet='0';
+    startSoloGame(name);
+}
+async function doCancelGame(){
+    if(W3.onchainGameId === null) { showMsg('No on-chain game'); return; }
+    let ok = await web3CancelGame(W3.onchainGameId);
+    if(ok) {
+        // Disconnect all connections, back to lobby
+        if(NET.peer) { try { NET.peer.destroy(); } catch(e){} }
+        NET.isHost=false; NET.roomCode=''; NET.conns=[null,null];
+        showLobby(true);
+    }
+}
+function startSoloGame(name){
+    SOLO=true;NET.isHost=true;NET.myIndex=0;NET.roomCode='';
+    NAMES=[name,'CPU-A','CPU-B'];
+    if(!BGM.playing&&!BGM.muted)bgmStart();
+    startOnlineGame();
+}
+function copyRoomCode(){
+    if(!NET.roomCode)return;
+    try{navigator.clipboard.writeText(NET.roomCode);showMsg('Room code copied: '+NET.roomCode,1200)}
+    catch(e){showMsg('Room code: '+NET.roomCode,2000)}
+}
+function backToRoom(){
+    if(NET.isHost){
+        NET.readyStates=[false,false,false];
+        resetG();
+        broadcastRoomState();
+    }else{
+        clientSend({type:'backToRoom'});
+    }
+}
+function onReady(){
+    // Joiner needs to joinGame on-chain
+    if(!NET.isHost && W3.onchainGameId !== null && W3.address && W3.contract) {
+        web3JoinGame(W3.onchainGameId, W3.currentBet).then(ok => {
+            if(!ok) {
+                showMsg('On-chain join failed, continuing in free mode', 2000);
+                W3.onchainGameId = null;
+                try{sessionStorage.removeItem('ddz_onchainGameId')}catch(e){}
+            }
+            if(NET.isHost) hostHandleReady(0);
+            else clientSend({type:'ready'});
+        });
+        return;
+    }
+    if(NET.isHost){
+        hostHandleReady(0);
+    }else{
+        clientSend({type:'ready'});
+    }
+}
+async function doClaimTimeout(){
+    if(W3.onchainGameId === null) { showMsg('No on-chain game'); return; }
+    let ok = await web3ClaimTimeout(W3.onchainGameId);
+    if(ok) showLobby(true);
+}
+function leaveRoom(){
+    if(NET.conns&&NET.conns[0]&&NET.conns[0].open)NET.conns[0].send({type:'leave'});
+    try{sessionStorage.removeItem('ddz_session')}catch(e){}
+    showLobby(true);
+}
+function resumeGame(){
+    try{
+        let saved=JSON.parse(sessionStorage.getItem('ddz_session'));
+        if(!saved||!saved.room||!saved.token)return showLobby(true);
+        NET.myToken=saved.token;
+        NET.myIndex=saved.index;
+        NET.myName=saved.name||'Player';
+        if(!BGM.playing&&!BGM.muted)bgmStart();
+        joinRoom(saved.room,saved.name);
+    }catch(e){showLobby(true)}
+}
+function clearAndShowLobby(){
+    showLobby(true);
+}
+
+// ============================================
+// Background Music (Web Audio API pentatonic scale)
+// ============================================
+let BGM={ctx:null,gain:null,playing:false,muted:false,timer:null};
+const PENTA=[261.6,293.7,329.6,392.0,440.0,523.3,587.3,659.3,784.0,880.0];
+const BASS=[130.8,146.8,164.8,196.0,220.0];
+const MELODY=[
+    [0,2,4,5, 4,2,0,2],
+    [4,5,6,4, 2,0,2,4],
+    [2,4,5,7, 5,4,2,0],
+    [5,6,7,5, 4,2,4,5],
+];
+
+function bgmInit(){
+    if(BGM.ctx)return;
+    BGM.ctx=new(window.AudioContext||window.webkitAudioContext)();
+    BGM.gain=BGM.ctx.createGain();
+    BGM.gain.gain.value=0.12;
+    let delay=BGM.ctx.createDelay();delay.delayTime.value=0.3;
+    let fb=BGM.ctx.createGain();fb.gain.value=0.2;
+    let wet=BGM.ctx.createGain();wet.gain.value=0.15;
+    delay.connect(fb);fb.connect(delay);delay.connect(wet);wet.connect(BGM.ctx.destination);
+    BGM.gain.connect(BGM.ctx.destination);
+    BGM.gain.connect(delay);
+}
+
+function bgmPlayNote(freq,time,dur,type='triangle',vol=0.25){
+    let c=BGM.ctx,o=c.createOscillator(),g=c.createGain();
+    o.type=type;o.frequency.value=freq;
+    g.gain.setValueAtTime(0,time);
+    g.gain.linearRampToValueAtTime(vol,time+0.02);
+    g.gain.exponentialRampToValueAtTime(0.001,time+dur);
+    o.connect(g);g.connect(BGM.gain);
+    o.start(time);o.stop(time+dur+0.05);
+}
+
+function bgmSchedule(){
+    if(!BGM.playing)return;
+    let t=BGM.ctx.currentTime+0.1;
+    let mel=MELODY[Math.floor(Math.random()*MELODY.length)];
+    let tempo=0.45;
+    for(let i=0;i<mel.length;i++){
+        let noteIdx=mel[i];
+        if(Math.random()<0.2)noteIdx=PENTA.length-1-noteIdx;
+        if(noteIdx<0)noteIdx=0;if(noteIdx>=PENTA.length)noteIdx=PENTA.length-1;
+        bgmPlayNote(PENTA[noteIdx],t+i*tempo,tempo*1.2,'triangle',0.18);
+    }
+    for(let i=0;i<4;i++){
+        let bi=Math.floor(Math.random()*BASS.length);
+        bgmPlayNote(BASS[bi],t+i*tempo*2,tempo*2.5,'sine',0.1);
+    }
+    BGM.timer=setTimeout(bgmSchedule,mel.length*tempo*1000);
+}
+
+function bgmStart(){
+    bgmInit();
+    if(BGM.ctx.state==='suspended')BGM.ctx.resume();
+    BGM.playing=true;
+    bgmSchedule();
+    document.getElementById('music-btn').classList.remove('muted');
+}
+
+function bgmStop(){
+    BGM.playing=false;
+    if(BGM.timer){clearTimeout(BGM.timer);BGM.timer=null}
+}
+
+function toggleMusic(){
+    if(!BGM.ctx){bgmStart();return}
+    if(BGM.muted){
+        BGM.gain.gain.value=0.12;BGM.muted=false;
+        if(!BGM.playing)bgmStart();
+        document.getElementById('music-btn').classList.remove('muted');
+    }else{
+        BGM.gain.gain.value=0;BGM.muted=true;
+        document.getElementById('music-btn').classList.add('muted');
+    }
+}
+
+// Sound effects
+function sfxSingle(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;bgmPlayNote(660,t,0.1,'triangle',0.08)}
+function sfxPair(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;bgmPlayNote(550,t,0.08,'triangle',0.07);bgmPlayNote(660,t+0.08,0.08,'triangle',0.07)}
+function sfxTriple(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;bgmPlayNote(440,t,0.07,'square',0.06);bgmPlayNote(550,t+0.07,0.07,'square',0.06);bgmPlayNote(660,t+0.14,0.07,'square',0.06)}
+function sfxTriple1(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;bgmPlayNote(440,t,0.06,'square',0.06);bgmPlayNote(550,t+0.06,0.06,'square',0.06);bgmPlayNote(660,t+0.12,0.06,'square',0.06);bgmPlayNote(880,t+0.2,0.06,'triangle',0.04)}
+function sfxFour2(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;bgmPlayNote(330,t,0.06,'square',0.07);bgmPlayNote(440,t+0.06,0.06,'square',0.07);bgmPlayNote(550,t+0.12,0.06,'square',0.07);bgmPlayNote(660,t+0.18,0.06,'square',0.07);bgmPlayNote(550,t+0.26,0.05,'triangle',0.04);bgmPlayNote(440,t+0.31,0.05,'triangle',0.04)}
+function sfxStraight(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;let notes=[392,440,494,523,587,660,698,784];for(let i=0;i<notes.length;i++)bgmPlayNote(notes[i],t+i*0.04,0.08,'triangle',0.06)}
+function sfxConsecPairs(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;let notes=[392,440,523,587,660,784];for(let i=0;i<notes.length;i++){bgmPlayNote(notes[i],t+i*0.05,0.09,'triangle',0.05);bgmPlayNote(notes[i]*0.75,t+i*0.05,0.09,'triangle',0.03)}}
+function sfxAirplane(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;let notes=[330,392,440,523,587,660,784,880];for(let i=0;i<notes.length;i++)bgmPlayNote(notes[i],t+i*0.035,0.1,'sawtooth',0.04);bgmPlayNote(880,t+0.3,0.2,'triangle',0.06)}
+function sfxBomb(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;for(let i=0;i<6;i++)bgmPlayNote(80+Math.random()*200,t+i*0.03,0.18,'sawtooth',0.09);bgmPlayNote(60,t+0.2,0.3,'sine',0.12)}
+function sfxRocket(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;for(let i=0;i<8;i++)bgmPlayNote(200+i*80,t+i*0.04,0.12,'sawtooth',0.06);for(let i=0;i<6;i++)bgmPlayNote(60+Math.random()*250,t+0.35+i*0.03,0.2,'sawtooth',0.1);bgmPlayNote(50,t+0.55,0.4,'sine',0.12)}
+function sfxSuperBomb(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;for(let r=0;r<3;r++){let off=r*0.2;for(let i=0;i<5;i++)bgmPlayNote(60+Math.random()*300,t+off+i*0.03,0.2,'sawtooth',0.08)}bgmPlayNote(40,t+0.65,0.5,'sine',0.15)}
+function sfxPass(){if(!BGM.ctx||BGM.muted)return;let t=BGM.ctx.currentTime;bgmPlayNote(400,t,0.08,'sine',0.04);bgmPlayNote(300,t+0.08,0.12,'sine',0.03)}
+
+// ============================================
+// Help Panel
+// ============================================
+function toggleHelp(){
+    document.getElementById('help-panel').classList.toggle('show');
+}
+
+// ============================================
+// Initialization
+// ============================================
+function disconnectWallet() {
+    W3.provider = null;
+    W3.signer = null;
+    W3.contract = null;
+    W3.address = null;
+    W3.balance = '0';
+    updateWalletUI();
+    // If in lobby (not in game), refresh lobby display
+    if(!VIEW) showLobby(false);
+}
+
+// Check if wallet is still connected (lock detection)
+async function checkWalletConnection() {
+    if(!window.ethereum || !W3.address) return;
+    try {
+        // Prefer MetaMask private API for lock detection
+        if(window.ethereum._metamask && window.ethereum._metamask.isUnlocked) {
+            const unlocked = await window.ethereum._metamask.isUnlocked();
+            if(!unlocked) { disconnectWallet(); return; }
+        }
+        // Also check eth_accounts
+        const accounts = await window.ethereum.request({method:'eth_accounts'});
+        if(accounts.length === 0 && W3.address) {
+            disconnectWallet();
+        } else if(accounts.length > 0 && accounts[0].toLowerCase() !== W3.address.toLowerCase()) {
+            await connectWallet();
+            if(!VIEW) showLobby(false);
+        }
+    } catch(e) {}
+}
+
+// Click outside to close wallet dropdown
+document.addEventListener('click', e => {
+    const dd = document.getElementById('wallet-dropdown');
+    if(dd && !dd.contains(e.target)) {
+        document.getElementById('wallet-menu').classList.remove('show');
+    }
+});
+
+window.onload=function(){
+    // Restore unsettled on-chain game ID
+    try{let saved=sessionStorage.getItem('ddz_onchainGameId');if(saved)W3.onchainGameId=BigInt(saved)}catch(e){}
+    showLobby(false);
+    if(window.ethereum){
+        // Listen for account changes (switch account, lock wallet)
+        window.ethereum.on('accountsChanged', accounts => {
+            if(accounts.length === 0) {
+                disconnectWallet();
+            } else {
+                connectWallet().then(()=>{ if(!VIEW) showLobby(false) });
+            }
+        });
+        // Listen for chain switch
+        window.ethereum.on('chainChanged', () => {
+            connectWallet().then(()=>{ if(!VIEW) showLobby(false) });
+        });
+        // Check on page load (don't auto-prompt MetaMask unlock)
+        window.ethereum.request({method:'eth_accounts'}).then(accounts=>{
+            if(accounts.length>0) connectWallet().then(()=>{if(!VIEW)showLobby(false)});
+        }).catch(()=>{});
+        // Poll every 3s to check wallet connection (MetaMask lock events unreliable)
+        setInterval(checkWalletConnection, 3000);
+        // Check immediately when page becomes visible
+        document.addEventListener('visibilitychange', () => {
+            if(!document.hidden) checkWalletConnection();
+        });
+    }
+};
+</script>
+</body>
+</html>

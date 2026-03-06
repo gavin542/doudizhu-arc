@@ -1,0 +1,18 @@
+{
+  "name": "doudizhu-arc",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Doudizhu Arc Edition - Web3 Integration (USDC Betting + Leaderboard + Nanopayments)",
+  "scripts": {
+    "start": "node server.mjs",
+    "deploy": "node scripts/deploy.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ethers": "^6.13.0",
+    "dotenv": "^16.4.0"
+  },
+  "optionalDependencies": {
+    "@circlefin/x402-batching": "^0.1.0"
+  }
+}
