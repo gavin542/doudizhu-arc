@@ -18,7 +18,7 @@ app.use(express.static(".", { index: "index.html" }));
 let gateway;
 if (SELLER_ADDRESS) {
   try {
-    const { createGatewayMiddleware } = await import("@circlefin/x402-batching/server");
+    const { createGatewayMiddleware } = await import("@circle-fin/x402-batching/server");
     gateway = createGatewayMiddleware({
       sellerAddress: SELLER_ADDRESS,
       networks: ["eip155:5042002"], // Arc Testnet

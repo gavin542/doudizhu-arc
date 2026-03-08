@@ -444,26 +444,148 @@ async function web3ClaimTimeout(gameId) {
     }
 }
 
-// Buy game pass (Nanopayments)
+// Nanopayments constants
+const GATEWAY_WALLET = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
+const USDC_ARC = '0x3600000000000000000000000000000000000000';
+const GATEWAY_ABI = ['function deposit(address token, uint256 amount)', 'function getBalance(address depositor, address token) view returns (uint256)'];
+const ERC20_ABI = ['function approve(address spender, uint256 amount) returns (bool)', 'function allowance(address owner, address spender) view returns (uint256)', 'function balanceOf(address) view returns (uint256)'];
+
+// Check Gateway balance
+async function getGatewayBalance() {
+    if (!W3.provider || !W3.address) return 0n;
+    const gw = new ethers.Contract(GATEWAY_WALLET, GATEWAY_ABI, W3.provider);
+    return await gw.getBalance(W3.address, USDC_ARC);
+}
+
+// Deposit USDC to Gateway (prerequisite for Nanopayments)
+async function depositToGateway(amount = '1') {
+    if (!W3.signer) { showMsg('Connect wallet first', 2000); return; }
+    showMsg('Depositing ' + amount + ' USDC to Gateway...', 3000);
+    const amountWei = ethers.parseUnits(amount, 6);
+    const usdc = new ethers.Contract(USDC_ARC, ERC20_ABI, W3.signer);
+    const gw = new ethers.Contract(GATEWAY_WALLET, GATEWAY_ABI, W3.signer);
+    // Approve
+    const allowance = await usdc.allowance(W3.address, GATEWAY_WALLET);
+    if (allowance < amountWei) {
+        showMsg('Approving USDC...', 3000);
+        const tx1 = await usdc.approve(GATEWAY_WALLET, amountWei);
+        await tx1.wait();
+    }
+    // Deposit
+    showMsg('Depositing to Gateway...', 3000);
+    const tx2 = await gw.deposit(USDC_ARC, amountWei, { gasLimit: 120000 });
+    await tx2.wait();
+    showMsg('Deposited ' + amount + ' USDC to Gateway!', 2000);
+}
+
+// Buy game pass (Nanopayments x402)
 async function buyGamePass() {
     try {
-        showMsg('Purchasing game pass...', 2000);
-        const resp = await fetch('/api/game-pass');
-        if (resp.status === 402) {
-            // Nanopayments payment required - prompt user
-            showMsg('Payment of $0.01 required (Nanopayments client needed)', 3000);
-            // In production, GatewayClient would auto-sign payment here
-            // In test mode, try to get free pass directly
+        if (!W3.signer) {
+            showMsg('Connect wallet first to buy pass', 2000);
             return null;
         }
+        showMsg('Purchasing game pass ($0.01)...', 2000);
+
+        // Step 1: Request game pass
+        const resp = await fetch('/api/game-pass');
+
+        if (resp.status === 402) {
+            // Step 2: Parse PAYMENT-REQUIRED header
+            const prHeader = resp.headers.get('PAYMENT-REQUIRED');
+            if (!prHeader) {
+                showMsg('Payment required but no details received', 3000);
+                return null;
+            }
+            const paymentRequired = JSON.parse(atob(prHeader));
+            const req = paymentRequired.accepts?.find(
+                r => r.extra?.name === 'GatewayWalletBatched' && r.extra?.version === '1'
+            );
+            if (!req) {
+                showMsg('No supported payment method', 3000);
+                return null;
+            }
+
+            // Step 3: Check Gateway balance
+            const gwBalance = await getGatewayBalance();
+            if (gwBalance < BigInt(req.amount || '10000')) {
+                showMsg('Insufficient Gateway balance. Depositing 1 USDC...', 3000);
+                await depositToGateway('1');
+            }
+
+            // Step 4: Construct EIP-3009 authorization
+            const nonce = '0x' + Array.from(crypto.getRandomValues(new Uint8Array(32)))
+                .map(b => b.toString(16).padStart(2, '0')).join('');
+            const now = Math.floor(Date.now() / 1000);
+            const authorization = {
+                from: W3.address,
+                to: req.payTo,
+                value: String(req.amount),
+                validAfter: String(now - 600),
+                validBefore: String(now + (req.maxTimeoutSeconds || 259200)),
+                nonce: nonce
+            };
+
+            // Step 5: Sign with MetaMask (EIP-712)
+            showMsg('Please sign in MetaMask...', 5000);
+            const domain = {
+                name: 'GatewayWalletBatched',
+                version: '1',
+                chainId: 5042002,
+                verifyingContract: req.extra.verifyingContract
+            };
+            const types = {
+                TransferWithAuthorization: [
+                    { name: 'from', type: 'address' },
+                    { name: 'to', type: 'address' },
+                    { name: 'value', type: 'uint256' },
+                    { name: 'validAfter', type: 'uint256' },
+                    { name: 'validBefore', type: 'uint256' },
+                    { name: 'nonce', type: 'bytes32' }
+                ]
+            };
+            const signature = await W3.signer.signTypedData(domain, types, {
+                from: authorization.from,
+                to: authorization.to,
+                value: BigInt(authorization.value),
+                validAfter: BigInt(authorization.validAfter),
+                validBefore: BigInt(authorization.validBefore),
+                nonce: authorization.nonce
+            });
+
+            // Step 6: Build PaymentPayload and retry
+            const paymentPayload = {
+                x402Version: 2,
+                scheme: req.scheme,
+                network: req.network,
+                payload: { authorization, signature }
+            };
+            const encoded = btoa(JSON.stringify(paymentPayload));
+
+            const resp2 = await fetch('/api/game-pass', {
+                headers: { 'PAYMENT-SIGNATURE': encoded }
+            });
+
+            if (resp2.ok) {
+                const data = await resp2.json();
+                W3.gamePass = data;
+                showMsg('Game pass acquired! Paid $0.01 via Nanopayments', 2000);
+                return data;
+            } else {
+                const errText = await resp2.text().catch(() => resp2.status);
+                showMsg('Payment failed: ' + errText, 3000);
+                return null;
+            }
+        }
+
         if (!resp.ok) throw new Error('Request failed: ' + resp.status);
         const data = await resp.json();
         W3.gamePass = data;
-        showMsg('Game pass acquired!', 1500);
+        showMsg('Game pass acquired (free mode)!', 1500);
         return data;
     } catch (err) {
-        // Fallback when server is not running
-        console.warn('Pass acquisition failed, falling back to free mode:', err.message);
+        console.warn('Pass acquisition failed:', err.message);
+        // Fallback when server is not running (GitHub Pages static mode)
         W3.gamePass = { pass: 'offline-' + Date.now(), expiresAt: Date.now() + 86400000, signature: 'offline' };
         return W3.gamePass;
     }
@@ -1278,12 +1400,17 @@ function showLobby(clearSession){
         ? '<span class="web3-badge on">Pass Active</span>'
         : '<button class="btn" style="padding:5px 14px;font-size:12px;background:#9b59b6" onclick="buyGamePass().then(()=>showLobby(false))">Buy Pass $0.01</button>';
 
+    let depositBtn = W3.address
+        ? '<button class="btn" style="padding:3px 10px;font-size:11px;background:#27ae60" onclick="depositToGateway(\'1\').then(()=>showLobby(false))">Deposit 1 USDC</button>'
+        : '';
+
     showOverlay(`
         <h2>Doudizhu <span style="font-size:14px;color:#ffd700">Arc Edition</span></h2>
         <p style="font-size:13px;color:#aaa;margin-bottom:8px">Web3 Battle | USDC Betting | On-chain Leaderboard</p>
         <div style="display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:14px;flex-wrap:wrap">
             ${walletStatus}
             ${passStatus}
+            ${depositBtn}
         </div>
         ${resumeHTML}
         ${refundHTML}
